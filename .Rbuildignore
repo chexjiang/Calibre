@@ -1,0 +1,10 @@
+^incoming$
+^results$
+^logs$
+^\.agents$
+^\.codex$
+^\.git$
+^\.gitignore$
+^[.][.]Rcheck$
+^EpiLink[.]Rcheck$
+^EpiLink_[0-9].*[.]tar[.]gz$

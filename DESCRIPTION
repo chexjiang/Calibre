@@ -1,0 +1,35 @@
+Package: EpiLink
+Title: Cell-Type-Specific Enhancer-Gene Link Inference
+Version: 0.1.0
+Authors@R: person("Chenxin", "Jiang", role = c("aut", "cre"),
+    email = "chenxin.jiang@example.org")
+Author: Chenxin Jiang [aut, cre]
+Maintainer: Chenxin Jiang <chenxin.jiang@example.org>
+Description: Fits count regression models for candidate enhancer-gene pairs,
+    generates synthetic null statistics by residual resampling, and calibrates
+    a shared empirical false discovery rate threshold.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends: R (>= 4.2.0)
+Imports:
+    GenomicRanges,
+    GenomeInfoDb,
+    IRanges,
+    MASS,
+    Matrix,
+    parallel,
+    pbmcapply,
+    S4Vectors,
+    Seurat,
+    Signac,
+    stats
+Suggests:
+    EnsDb.Hsapiens.v86,
+    SCENT,
+    scMultiMap,
+    ggplot2,
+    testthat (>= 3.0.0),
+    yaml
+Config/testthat/edition: 3

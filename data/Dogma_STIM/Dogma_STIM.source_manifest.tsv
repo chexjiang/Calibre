@@ -1,0 +1,2 @@
+condition	lysis	matrix_prefix	metrics_file	fragment_file
+STIM	LLL	GSM5065528_LLL_STIM_GExp_ATAC_filtered	GSM5065527_LLL_STIM_per_barcode_metrics.csv.gz	GSM5065527_LLL_STIM_fragments.tsv.gz

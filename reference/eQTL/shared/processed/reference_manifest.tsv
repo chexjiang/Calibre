@@ -1,0 +1,4 @@
+resource	path	n_rows	n_variants	n_genes	source_ids
+OneK1K_Bcell	reference/eQTL/shared/processed/OneK1K_Bcell.rds	70824	52489	868	QTD000606,QTD000607,QTD000608
+OneK1K_Myeloid	reference/eQTL/shared/processed/OneK1K_Myeloid.rds	35649	20542	413	QTD000609,QTD000610
+OneK1K_Tnk	reference/eQTL/shared/processed/OneK1K_Tnk.rds	227339	188729	3651	QTD000612,QTD000615,QTD000620

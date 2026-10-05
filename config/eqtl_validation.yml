@@ -1,0 +1,86 @@
+reference:
+  raw_dir: reference/eQTL/shared/raw
+  processed_dir: reference/eQTL/shared/processed
+  fine_map_source: eQTL Catalogue release 7 / OneK1K SuSiE credible sets
+  background_source: pgBoost bundled 1000 Genomes SNPs, MAC > 5
+  fine_map_pip_scent: 0.20
+  fine_map_pip_rank: 0.50
+  cis_window_bp: 500000
+  min_tss_distance_bp: 1000
+  bootstrap_replicates: 1000
+  bootstrap_seed: 20260921
+
+# OneK1K subtypes are pooled by broad benchmark cell type using max PIP for a
+# duplicated variant-gene pair.  Equal reference definitions are used for all
+# prediction methods within a dataset/cell type.
+reference_groups:
+  Bcell:
+    - QTD000606
+    - QTD000607
+    - QTD000608
+  Myeloid:
+    - QTD000609
+    - QTD000610
+  Tnk:
+    - QTD000612
+    - QTD000615
+    - QTD000620
+
+reference_labels:
+  QTD000606: OneK1K B_intermediate
+  QTD000607: OneK1K B_memory
+  QTD000608: OneK1K B_naive
+  QTD000609: OneK1K CD14_Mono
+  QTD000610: OneK1K CD16_Mono
+  QTD000612: OneK1K CD4_Naive
+  QTD000615: OneK1K CD8_Naive
+  QTD000620: OneK1K NK
+
+benchmarks:
+  pbmc:
+    Bcell: Bcell
+    Myeloid: Myeloid
+    T: Tnk
+  bmmc:
+    Bcell: Bcell
+    Myeloid: Myeloid
+    T: Tnk
+  Dogma_CTRL:
+    Bcell: Bcell
+    Myeloid: Myeloid
+    T: Tnk
+  Dogma_STIM:
+    Bcell: Bcell
+    Myeloid: Myeloid
+    T: Tnk
+  Arthritis:
+    T: Tnk
+    B: Bcell
+    Myeloid: Myeloid
+  SHARE:
+    LCL: Bcell
+
+methods:
+  epilink_poisson:
+    primary_score: beta
+    evidence_score: zval
+  epilink_nb:
+    primary_score: beta
+    evidence_score: zval
+  poisson_glm:
+    primary_score: beta
+    evidence_score: zval
+  nb_glm:
+    primary_score: beta
+    evidence_score: zval
+  scmultimap:
+    primary_score: cor
+    evidence_score: test_stat
+  signac:
+    primary_score: score
+    evidence_score: zscore
+
+ranking:
+  # Curves use ranks, so score scales do not have to be comparable across methods.
+  top_fractions: [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.10, 0.20, 0.50, 1.00]
+  recall_grid: [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00]

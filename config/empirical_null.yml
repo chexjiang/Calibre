@@ -1,0 +1,19 @@
+dataset: pbmc
+celltype: Tnk
+celltype_column: newCT
+n_replicates: 1000
+n_pairs: 1000
+alpha: 0.05
+seed: 20260823
+parallel_replicates: 10
+replicates_per_folder: 100
+per_replicate_cores: 1
+scent_cores: 1
+selection: rate
+binarize_atac: true
+covariates:
+  - log(nCount_RNA)
+epilink_correction: true
+epilink_conservative: true
+scmultimap_irls: true
+output_dir: results/simulation/empirical_null

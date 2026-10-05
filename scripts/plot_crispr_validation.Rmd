@@ -1,0 +1,57 @@
+---
+title: "CRISPR-FlowFISH odds-ratio validation"
+output:
+  html_document:
+    toc: true
+    df_print: paged
+params:
+  dataset: pbmc
+  correction: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(ggplot2)
+library(knitr)
+
+project_root <- normalizePath("~/proj/EpiLink", mustWork = TRUE)
+dataset_name <- if (exists("params")) params$dataset else "pbmc"
+correction <- if (exists("params")) isTRUE(params$correction) else FALSE
+correction_label <- if (correction) "correction_T" else "correction_F"
+validation_root <- file.path(project_root, "results", "real", dataset_name, "validation")
+figure_dir <- file.path(validation_root, "figures")
+dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
+source(file.path(project_root, "R", "validation_plots.R"))
+
+correction_root <- file.path(validation_root, "CRISPR", correction_label)
+metrics_path <- file.path(correction_root, "enrichment_metrics.tsv")
+if (!file.exists(metrics_path)) stop("Missing CRISPR metrics: ", metrics_path)
+metrics <- read.delim(metrics_path, stringsAsFactors = FALSE, check.names = FALSE)
+if (!"celltype" %in% names(metrics)) stop("CRISPR metrics must contain a celltype column")
+```
+
+This report reads the already-computed CRISPR enrichment tables for one
+EpiLink correction setting (`correction = `r correction``). It produces
+exactly two publication figures in `validation/figures/`: an odds-ratio
+trajectory and a 4-by-4 odds-ratio/95% CI panel plot.
+
+## Summary
+
+```{r summary}
+summary <- aggregate(
+  cbind(n_universe, n_selected) ~ celltype + method,
+  data = metrics, FUN = function(x) x[1]
+)
+kable(summary, digits = 3)
+```
+
+## Odds ratio versus FDR cutoff
+
+```{r odds-ratio, fig.width=12, fig.height=8}
+p_or <- plot_validation_odds_ratio(
+  metrics, dataset_name, paste0("CRISPR (correction=", correction, ")")
+)
+print(p_or)
+ggsave(file.path(figure_dir, paste0("odds_ratio_crispr_", correction_label, ".pdf")), p_or,
+       width = 12, height = 8)
+```

@@ -1,0 +1,112 @@
+defaults:
+  data_generating_models:
+    - poisson
+    - nb
+    - zinb
+  effect_fraction: 0.10
+  atac_probability: 0.20
+  intercept: 1.0
+  nb_size: 2.0
+  zero_inflation: 0.30
+  fdr: 0.10
+  epilink_correction: true
+  epilink_conservative: true
+  seed: 20260818
+  methods:
+    - glm_poisson_bh
+    - glm_nb_bh
+    - epilink_poisson_residual
+    - epilink_nb_residual
+    - scmultimap
+    - signac
+  include_scent: false
+  scent_cores: 1
+
+profiles:
+  diagnostic:
+    n_cells: 200
+    n_pairs: 500
+    n_replicates: 100
+    effect_sizes:
+      - 0.0
+      - 0.2
+    n_cores: 8
+    output_dir: results/simulation/diagnostic_corrected_plusone
+
+  power_pilot:
+    n_cells: 500
+    n_pairs: 500
+    n_replicates: 20
+    effect_fraction: 0.20
+    effect_sizes:
+      - 0.2
+    n_cores: 8
+    output_dir: results/simulation/power_pilot_corrected_plusone
+
+  trend:
+    n_cells: 500
+    n_pairs: 500
+    n_replicates: 20
+    effect_fraction: 0.20
+    effect_sizes:
+      - 0.0
+      - 0.1
+      - 0.2
+      - 0.3
+      - 0.4
+      - 0.5
+      - 0.6
+      - 0.8
+      - 1.0
+      - 1.2
+    n_cores: 8
+    output_dir: results/simulation/trend_all_methods
+
+  model_based:
+    n_cells:
+      - 100
+      - 200
+      - 300
+      - 400
+    n_pairs: 500
+    n_replicates: 20
+    effect_fraction: 0.20
+    effect_sizes:
+      - 0.0
+      - 0.1
+      - 0.2
+      - 0.3
+      - 0.4
+      - 0.5
+      - 0.6
+      - 0.8
+      - 1.0
+      - 1.2
+    n_cores: 8
+    output_dir: results/simulation/model_based
+
+  quick:
+    n_cells: 200
+    n_pairs: 300
+    n_replicates: 10
+    effect_sizes:
+      - 0.2
+      - 0.5
+      - 0.8
+      - 1.1
+    n_cores: 8
+    output_dir: results/simulation/quick_corrected_plusone
+
+  full:
+    n_cells: 300
+    n_pairs: 1000
+    n_replicates: 50
+    effect_sizes:
+      - 0.2
+      - 0.4
+      - 0.6
+      - 0.8
+      - 1.0
+      - 1.2
+    n_cores: 10
+    output_dir: results/simulation/full_corrected_plusone

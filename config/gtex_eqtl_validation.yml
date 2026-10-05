@@ -1,0 +1,49 @@
+reference:
+  source: GTEx v8 CAVIAR fine-mapping across 49 tissues
+  archive: results/validation/eQTL/GTEx/reference/raw/GTEx_v8_finemapping_CAVIAR.tar
+  caviar_file: results/validation/eQTL/GTEx/reference/raw/GTEx_v8_finemapping_CAVIAR/CAVIAR_Results_v8_GTEx_LD_ALL_NOCUTOFF_with_Allele.txt.gz
+  processed_dir: results/validation/eQTL/GTEx/reference/processed
+  background: results/validation/GWAS/reference/1000G/1000G_EUR_MAFgt0.01.hg38.rds
+  tss: reference/eQTL/shared/processed/TSS.hg38.rds
+  ensembl_map: reference/eQTL/shared/processed/ensembl_to_symbol.rds
+  fine_map_pip_scent: 0.20
+  fine_map_pip_rank: 0.50
+  cis_window_bp: 500000
+  bootstrap_replicates: 1000
+  bootstrap_seed: 20261003
+
+methods:
+  epilink_poisson:
+    primary_score: beta
+    evidence_score: zval
+  epilink_nb:
+    primary_score: beta
+    evidence_score: zval
+  scmultimap:
+    primary_score: cor
+    evidence_score: test_stat
+  signac:
+    primary_score: score
+    evidence_score: zscore
+
+ranking:
+  top_fractions: [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.10, 0.20, 0.50, 1.00]
+  recall_grid: [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00]
+
+# Every ordinary results/real panel with complete EpiLink-Poisson, EpiLink-NB,
+# scMultiMap and Signac outputs. Brain2 has no ordinary link outputs and
+# Brain2_diff is a differential-link analysis, so neither is mixed into this
+# benchmark.
+benchmarks:
+  pbmc: [Bcell, Myeloid, T]
+  bmmc: [Bcell, Dendritic, Erythroid, Myeloid, T]
+  Dogma_CTRL: [Bcell, Myeloid, T]
+  Dogma_STIM: [Bcell, Myeloid, T]
+  Arthritis: [B, Endothelial, Fibroblast, Myeloid, T]
+  SHARE: [LCL]
+  Brain: [Astrocytes, Excitatory neurons, Oligodendroglia]
+  Pituitary: [Corticotropes, Gonadotropes, Lactotropes, Somatotropes, Stem cells, Thyrotropes]
+  NEAT: [CD4T]
+  SatpathyK562: [K562]
+  XuK562: [K562]
+

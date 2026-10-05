@@ -1,0 +1,6 @@
+source(file.path("R", "helper.R"))
+path <- file.path("data", "Arthritis", "Arthritis.gene_peak_df.rds")
+pairs <- readRDS(path)
+pairs$peak <- CanonicalPeakNames(pairs$peak)
+saveRDS(pairs, path, compress = "gzip")
+cat("Canonicalized", nrow(pairs), "Arthritis gene-peak pairs.\n")

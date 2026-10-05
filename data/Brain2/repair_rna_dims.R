@@ -1,0 +1,10 @@
+path <- file.path("data", "Brain2", "Brain2.rna.rds")
+rna <- readRDS(path)
+stopifnot(inherits(rna, "dgCMatrix"), length(rownames(rna)) == 36601L,
+          length(colnames(rna)) == 104626L)
+rna@Dim <- as.integer(c(36601L, 104626L))
+tmp <- paste0(path, ".tmp")
+saveRDS(rna, tmp, compress = FALSE)
+stopifnot(identical(dim(readRDS(tmp)), c(36601L, 104626L)))
+file.rename(tmp, path)
+cat("Repaired RNA dimensions:", paste(dim(rna), collapse = " x "), "\n")

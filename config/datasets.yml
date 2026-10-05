@@ -1,0 +1,228 @@
+defaults:
+  family: poisson
+  null_generation: s
+  statistic: zval
+  fdr: 0.10
+  correction: false
+  conservative: false
+  seed: 20260818
+  n_cores: 32
+  celltype_column: newCT
+  selection: rate
+  binarize_atac: true
+  scmultimap_irls: true
+
+pbmc:
+  rna: data/pbmc/pbmc_multimodal.rna.rds
+  atac: data/pbmc/pbmc_multimodal.atac.rds
+  metadata: data/pbmc/pbmc_multimodal.meta.rds
+  candidate_pairs: data/pbmc/pbmc_gene_peak_df.rds
+  celltype_column: newCT
+  batch_column: null
+  covariates:
+    - log(nCount_RNA)
+  output_dir: results/pbmc
+  benchmark_output_dir: results/real/pbmc
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+
+bmmc:
+  rna: data/bmmc/NeurIPS_multiome.rna.rds
+  atac: data/bmmc/NeurIPS_multiome.atac.rds
+  metadata: data/bmmc/NeurIPS_multiome.meta.rds
+  candidate_pairs: data/bmmc/NeurIPS_multiome.gene_peak_df.rds
+  celltype_column: newCT
+  batch_column: batch
+  scmultimap_irls: true
+  covariates:
+    - log(nCount_RNA)
+    - batch
+  output_dir: results/bmmc
+  benchmark_output_dir: results/real/bmmc
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+  
+  
+Dogma_CTRL:
+  rna: data/Dogma_CTRL/Dogma_CTRL.rna.rds
+  atac: data/Dogma_CTRL/Dogma_CTRL.atac.rds
+  metadata: data/Dogma_CTRL/Dogma_CTRL.meta.rds
+  candidate_pairs: data/Dogma_CTRL/Dogma_CTRL.gene_peak_df.rds
+  celltype_column: newCT
+  batch_column: null
+  covariates:
+    - log(nCount_RNA)
+  output_dir: results/Dogma_CTRL
+  benchmark_output_dir: results/real/Dogma_CTRL
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+
+Dogma_STIM:
+  rna: data/Dogma_STIM/Dogma_STIM.rna.rds
+  atac: data/Dogma_STIM/Dogma_STIM.atac.rds
+  metadata: data/Dogma_STIM/Dogma_STIM.meta.rds
+  candidate_pairs: data/Dogma_STIM/Dogma_STIM.gene_peak_df.rds
+  celltype_column: newCT
+  batch_column: null
+  covariates:
+    - log(nCount_RNA)
+  output_dir: results/Dogma_STIM
+  benchmark_output_dir: results/real/Dogma_STIM
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+  
+  
+NEAT:
+  rna: data/NEAT/NEAT.rna.rds
+  atac: data/NEAT/NEAT.atac.rds
+  metadata: data/NEAT/NEAT.meta.rds
+  candidate_pairs: data/NEAT/NEAT.gene_peak_df.rds
+  batch_column: Sample
+  covariates:
+    - log(nCount_RNA)
+    - Sample
+  benchmark_output_dir: results/real/NEAT
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+  
+  
+SHARE:
+  rna: data/SHARE/SHARE.rep3.rna.rds
+  atac: data/SHARE/SHARE.rep3.atac.rds
+  metadata: data/SHARE/SHARE.rep3.meta.rds
+  candidate_pairs: data/SHARE/SHARE.rep3.gene_peak_df.rds
+  covariates:
+    - log(nCount_RNA)
+  batch_column: null
+  benchmark_output_dir: results/real/SHARE
+  genome: hg19
+  conservative: false
+  crispr_reference_build: hg19
+  crispr_positive: reference/CRISPR/crispr_hg19_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg19_negative.tsv
+
+XuK562:
+  rna: data/XuK562/XuK562.rna.rds
+  atac: data/XuK562/XuK562.atac.rds
+  metadata: data/XuK562/XuK562.meta.rds
+  candidate_pairs: data/XuK562/XuK562.gene_peak_df.rds
+  covariates:
+    - log(nCount_RNA)
+  batch_column: null
+  output_dir: results/XuK562
+  benchmark_output_dir: results/real/XuK562
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+
+SatpathyK562:
+  rna: data/SatpathyK562/SatpathyK562.rna.rds
+  atac: data/SatpathyK562/SatpathyK562.atac.rds
+  metadata: data/SatpathyK562/SatpathyK562.meta.rds
+  candidate_pairs: data/SatpathyK562/SatpathyK562.gene_peak_df.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+  batch_column: null
+  output_dir: results/SatpathyK562
+  benchmark_output_dir: results/real/SatpathyK562
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+
+Brain:
+  rna: data/Brain/Brain.rna.rds
+  atac: data/Brain/Brain.atac.rds
+  metadata: data/Brain/Brain.meta.rds
+  candidate_pairs: data/Brain/Brain.gene_peak_df.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+  batch_column: sample
+  output_dir: results/Brain
+  benchmark_output_dir: results/real/Brain
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+
+Brain2:
+  rna: data/Brain2/Brain2.rna.rds
+  atac: data/Brain2/Brain2.atac.rds
+  metadata: data/Brain2/Brain2.meta.rds
+  candidate_pairs: data/Brain2/Brain2.gene_peak_df.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+    - condition
+  subset_covariates:
+    - log(nCount_RNA)
+  batch_column: donor
+  diff_condition_column: condition
+  diff_donor_column: donor
+  diff_covariates:
+    - log(nCount_RNA)
+  output_dir: results/Brain2
+  benchmark_output_dir: results/real/Brain2
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+
+Arthritis:
+  # (T, B, Myeloid, Endothelial, Fibroblast)
+  rna: data/Arthritis/Arthritis.rna.rds
+  atac: data/Arthritis/Arthritis.atac.rds
+  metadata: data/Arthritis/Arthritis.meta.rds
+  candidate_pairs: data/Arthritis/Arthritis.gene_peak_df.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+  batch_column: null
+  output_dir: results/Arthritis
+  benchmark_output_dir: results/real/Arthritis
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+
+Pituitary:
+  rna: data/Pituitary/Pituitary.rna.rds
+  atac: data/Pituitary/Pituitary.atac.rds
+  metadata: data/Pituitary/Pituitary.meta.rds
+  candidate_pairs: data/Pituitary/Pituitary.gene_peak_df.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+  batch_column: null
+  output_dir: results/Pituitary
+  benchmark_output_dir: results/real/Pituitary
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+  
+  

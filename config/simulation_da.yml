@@ -1,0 +1,37 @@
+output_dir: results/simulation/da
+data_generating_models:
+  - poisson
+  - nb
+  - zinb
+n_donors: 2
+n_donors_control: 1
+n_cells:
+  - 100
+  - 200
+  - 300
+  - 400
+n_pairs: 400
+n_replicates: 20
+effect_fraction: 0.20
+effect_sizes:
+  - 0.2
+  - 0.4
+  - 0.6
+  - 0.8
+  - 1.0
+atac_probability: 0.40
+intercept: 1.0
+atac_effect: 0.50
+condition_effect: 0.20
+nb_size: 10.0
+zero_inflation: 0.30
+fdr: 0.10
+null_generation: s
+epilink_correction: true
+epilink_conservative: true
+donor_robust: false
+scmultimap_permutations: 100
+scmultimap_irls: false
+seed: 20260930
+n_cores: 16
+pair_cores: 1

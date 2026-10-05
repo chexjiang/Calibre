@@ -1,0 +1,149 @@
+---
+title: "Promoter capture Hi-C enrichment"
+output:
+  html_document:
+    toc: true
+    df_print: paged
+params:
+  project_root: "~/proj/EpiLink"
+  datasets:
+    - "pbmc"
+  chicago_cutoff: 5
+  chicago_operator: ">"
+  expand_multigene_baits: false
+  correction: true
+  partial: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(GenomicRanges)
+library(rtracklayer)
+
+project_root <- normalizePath(path.expand(params$project_root), mustWork = TRUE)
+datasets <- unique(as.character(unlist(params$datasets, use.names = FALSE)))
+source(file.path(project_root, "R", "validation.R"))
+source(file.path(project_root, "scripts", "PCHiC_enrichment.R"))
+source(file.path(project_root, "R", "validation_plots.R"))
+
+method_levels <- validation_method_levels
+```
+
+This report compares significant peak--gene associations with promoter capture
+Hi-C (PCHiC) interactions from Javierre et al. (Cell, 2016; DATA S1). It uses
+the PCHiC other-end fragment as the candidate regulatory interval, lifts hg19
+coordinates to hg38, requires a matching `baitName`, and evaluates enrichment
+with a one-sided Fisher exact test.
+
+The scMultiMap manuscript's PBMC analysis used the `Mon` PCHiC column for CD14
+monocytes and adjusted (p < 0.1). This report additionally maps the broad
+EpiLink groups as follows so all available groups can be inspected; these broad
+comparisons are extensions of, rather than exact replications of, the published
+CD14-monocyte analysis.
+
+```{r mapping}
+mapping_table <- bind_rows(lapply(names(default_pchic_celltype_map), function(celltype) {
+  data.frame(celltype = celltype,
+             PCHiC_columns = paste(default_pchic_celltype_map[[celltype]], collapse = ", "))
+}))
+kable(mapping_table)
+```
+
+`Tnk` has no exact reference match because the PCHiC matrix has T-cell but no
+NK-cell column. Foetal thymus (`FoeT`) is intentionally excluded. `Myeloid` is
+compared with monocytes (`Mon`), matching the scMultiMap paper; `Bcell` uses
+naive and total B-cell columns.
+
+## Read PCHiC validation sets
+
+```{r read-pchic}
+references <- load_pchic_reference(
+  project_root,
+  chicago_cutoff = params$chicago_cutoff,
+  chicago_operator = params$chicago_operator,
+  expand_multigene_baits = params$expand_multigene_baits
+)
+
+reference_summary <- data.frame(
+  celltype = names(references),
+  significant_lifted_interactions = vapply(references, length, integer(1L)),
+  unique_bait_names = vapply(references, function(x) length(unique(x$gene)), integer(1L))
+)
+kable(reference_summary)
+```
+
+The published code comments describe CHiCAGO score \(\ge 5\), but both the
+scMultiMap manuscript notebook and package vignette implement `score > 5`.
+The default above follows the executable code. Set `chicago_operator: ">="` to
+follow the prose literally. Exact `baitName` matching also follows their code;
+set `expand_multigene_baits: true` to split semicolon-delimited bait annotations.
+
+## Compute enrichment
+
+All methods use the complete EpiLink-Poisson tested pair set for their cell type
+as a common universe. As in scMultiMap's procedure, that universe is restricted
+to genes represented among significant PCHiC bait names. A tested pair is a
+PCHiC positive when its peak overlaps a significant other-end fragment and its
+gene exactly matches the corresponding bait name. Duplicate interval hits are
+collapsed to one binary status per tested pair before constructing the 2-by-2
+table.
+
+```{r compute}
+metric_list <- lapply(datasets, function(dataset) {
+  metrics <- compute_dataset_pchic(
+    project_root, dataset, references,
+    allow_missing = isTRUE(params$partial),
+    correction = isTRUE(params$correction)
+  )
+  output_dir <- file.path(project_root, "results", "real", dataset,
+                          "validation", "PCHiC",
+                          if (isTRUE(params$correction)) "correction_T" else "correction_F")
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  fwrite(metrics, file.path(output_dir, "enrichment_metrics.tsv"), sep = "\t")
+  metrics
+})
+metrics <- bind_rows(metric_list)
+metrics$method <- factor(metrics$method, levels = method_levels)
+metrics$cutoff_label <- factor(
+  paste0("FDR = ", metrics$cutoff),
+  levels = paste0("FDR = ", sort(unique(metrics$cutoff)))
+)
+
+metrics %>%
+  select(dataset, celltype, method, cutoff, TP, FP, FN, TN, odds_ratio,
+         CI_low, CI_high, pval, n_universe, n_selected, n_pchic_links) %>%
+  arrange(dataset, celltype, cutoff, method) %>%
+  kable(digits = 3)
+```
+
+## Canonical odds-ratio figures
+
+The report writes exactly two PDFs per dataset. The first contains four
+cell-type panels (including pooled `All`) with odds-ratio trajectories over FDR
+cutoffs. The second contains the corresponding 4-by-4 odds-ratio/95% CI grid.
+
+```{r odds-ratio, fig.width=12, fig.height=8}
+for (dataset in datasets) {
+  dataset_metrics <- metrics[metrics$dataset == dataset, , drop = FALSE]
+  dataset_metrics <- append_validation_all(dataset_metrics)
+  figure_dir <- file.path(project_root, "results", "real", dataset,
+                          "validation", "figures")
+  dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
+  p_or <- plot_validation_odds_ratio(dataset_metrics, dataset, "PCHiC")
+  suffix <- if (isTRUE(params$correction)) "T" else "F"
+  ggsave(file.path(figure_dir, paste0("odds_ratio_pchic_correction_", suffix, ".pdf")), p_or,
+         width = 12, height = 8)
+  print(p_or)
+}
+```
+```
+
+## Session information
+
+```{r session-info}
+sessionInfo()
+```
