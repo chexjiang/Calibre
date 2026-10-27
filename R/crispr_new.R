@@ -2,10 +2,10 @@
 
 crispr_new_method_specs <- function() {
   data.frame(
-    method = c("EpiLink-Poisson", "EpiLink-NB", "Poisson-GLM", "NB-GLM",
+    method = c("Calibre-Poisson", "Calibre-NB", "Poisson-GLM", "NB-GLM",
                "scMultiMap", "scMultiMap-noBatch", "Signac (corrected)",
                "Signac (uncorrected)"),
-    method_id = c("epilink_poisson", "epilink_nb", "poisson_glm", "nb_glm",
+    method_id = c("calibre_poisson", "calibre_nb", "poisson_glm", "nb_glm",
                   "scmultimap", "scmultimap_nobatch", "signac",
                   "signac_uncorrected"),
     stringsAsFactors = FALSE

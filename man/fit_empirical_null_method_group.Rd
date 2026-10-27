@@ -14,8 +14,8 @@ fit_empirical_null_method_group(
   n_cores = 1L,
   selection = "rate",
   binarize_atac = TRUE,
-  epilink_correction = TRUE,
-  epilink_conservative = TRUE,
+  calibre_correction = TRUE,
+  calibre_conservative = TRUE,
   scmultimap_irls = TRUE,
   scent_cores = 1L
 )

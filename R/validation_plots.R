@@ -1,14 +1,15 @@
 # Shared odds-ratio, confidence-interval, and p-value plots for validation.
 
 validation_method_levels <- c(
-  "EpiLink-Poisson", "EpiLink-NB", "scMultiMap", "scMultiMap-noBatch",
-  "Signac (corrected)", "Signac (uncorrected)"
+  "Calibre-Poisson", "Calibre-NB", "scMultiMap", "scMultiMap-noBatch",
+  "Signac (corrected)", "Signac (uncorrected)", "ArchR"
 )
 
 validation_palette <- c(
-  "EpiLink-Poisson" = "#E47159", "EpiLink-NB" = "#C87878",
-  "scMultiMap" = "#edd089", 
-  "Signac (corrected)" = "#54b2a2", "Signac (uncorrected)" = "#78A878"
+  "Calibre-Poisson" = "#F94144", "Calibre-NB" = "#E7A2C2",
+  "scMultiMap" = "#54b2a2", 
+  "Signac (corrected)" = "#08519c", "Signac (uncorrected)" = "grey",
+  "ArchR" = "#F8961E"
 )
 
 validation_celltypes <- c("Bcell", "Myeloid", "Tnk", "All")

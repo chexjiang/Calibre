@@ -5,12 +5,12 @@
 empirical_null_methods <- function() {
   data.frame(
     method_id = c(
-      "epilink_poisson", "epilink_nb", "glm_poisson", "glm_nb",
-      "scmultimap", "signac", "scent"
+      "calibre_poisson", "calibre_nb", "glm_poisson", "glm_nb",
+      "scmultimap", "signac", "scent", "archr"
     ),
     method = c(
-      "EpiLink-Poisson", "EpiLink-NB", "Poisson-GLM", "NB-GLM",
-      "scMultiMap", "Signac", "SCENT"
+      "Calibre-Poisson", "Calibre-NB", "Poisson-GLM", "NB-GLM",
+      "scMultiMap", "Signac", "SCENT", "ArchR"
     ),
     stringsAsFactors = FALSE
   )
@@ -28,7 +28,7 @@ permute_empirical_atac <- function(atac, seed) {
     stop("ATAC cells must have unique names", call. = FALSE)
   }
   target_cells <- colnames(atac)
-  permutation <- with_epilink_seed(as.integer(seed), sample.int(ncol(atac)))
+  permutation <- with_calibre_seed(as.integer(seed), sample.int(ncol(atac)))
   permuted <- atac[, permutation, drop = FALSE]
   source_cells <- colnames(permuted)
   colnames(permuted) <- target_cells
@@ -61,7 +61,7 @@ sample_empirical_pairs <- function(object, pairs, n_pairs, selection, seed) {
     stop("Only ", nrow(filtered), " eligible pairs; requested ", n_pairs,
          call. = FALSE)
   }
-  chosen <- with_epilink_seed(
+  chosen <- with_calibre_seed(
     as.integer(seed), sample.int(nrow(filtered), as.integer(n_pairs))
   )
   out <- filtered[chosen, , drop = FALSE]
@@ -93,7 +93,7 @@ align_empirical_result <- function(results, pairs, method_id, method, alpha,
   if (is.null(results) || !nrow(results)) return(out)
   matched <- match(empirical_pair_key(pairs), empirical_pair_key(results))
   statistic_column <- intersect(
-    c("zval", "test_stat", "zscore", "score", "cor", "covar"),
+    c("zval", "test_stat", "zscore", "score", "cor", "Correlation", "covar"),
     names(results)
   )
   if (length(statistic_column)) {
@@ -121,7 +121,7 @@ fit_empirical_glm <- function(object, pairs, family, alpha, covariates,
   method_id <- paste0("glm_", family)
   registry <- empirical_null_methods()
   method <- registry$method[match(method_id, registry$method_id)]
-  results <- EpiLink(
+  results <- Calibre(
     object = object, gene_peak_df = pairs[, c("gene", "peak")],
     family = family, celltype = NULL, covariates = covariates,
     null_generation = "s", stat = "zval", bin = binarize_atac,
@@ -132,20 +132,20 @@ fit_empirical_glm <- function(object, pairs, family, alpha, covariates,
   align_empirical_result(results, pairs, method_id, method, alpha)
 }
 
-#' Fit EpiLink and its corresponding BH-GLM on one null replicate
+#' Fit Calibre and its corresponding BH-GLM on one null replicate
 #'
-#' A single EpiLink fit supplies the observed GLM p-values used by both rows,
+#' A single Calibre fit supplies the observed GLM p-values used by both rows,
 #' avoiding a redundant second model fit.
-fit_empirical_epilink_family <- function(object, pairs, family, alpha,
+fit_empirical_calibre_family <- function(object, pairs, family, alpha,
                                          covariates, n_cores, seed,
                                          selection = "rate", binarize_atac = TRUE,
                                          correction = TRUE, conservative = TRUE) {
-  epilink_id <- paste0("epilink_", family)
+  calibre_id <- paste0("calibre_", family)
   glm_id <- paste0("glm_", family)
   registry <- empirical_null_methods()
-  epilink_label <- registry$method[match(epilink_id, registry$method_id)]
+  calibre_label <- registry$method[match(calibre_id, registry$method_id)]
   glm_label <- registry$method[match(glm_id, registry$method_id)]
-  fitted <- EpiLink(
+  fitted <- Calibre(
     object = object, gene_peak_df = pairs[, c("gene", "peak")],
     family = family, celltype = NULL, covariates = covariates,
     null_generation = "s", stat = "zval", bin = binarize_atac,
@@ -154,24 +154,29 @@ fit_empirical_epilink_family <- function(object, pairs, family, alpha,
     conservative = conservative, verbose = FALSE, seed = seed
   )
   if (is.null(fitted)) {
+    empty_calibre <- empty_empirical_result(
+      pairs, calibre_id, calibre_label, "Calibre returned no fitted pairs"
+    )
     return(list(
-      epilink = empty_empirical_result(pairs, epilink_id, epilink_label,
-                                       "EpiLink returned no fitted pairs"),
+      calibre = empty_calibre,
+      epilink = empty_calibre,
       glm = empty_empirical_result(pairs, glm_id, glm_label,
-                                   "EpiLink returned no fitted pairs")
+                                   "Calibre returned no fitted pairs")
     ))
   }
-  results <- fitted@misc$EpiLink$res_df
-  significant <- EpiLinkFilter(
+  results <- fitted@misc$Calibre$res_df
+  significant <- CalibreFilter(
     fitted, stat = "zval", fdrcutoff = alpha, correction = correction,
     conservative = conservative, returnObject = FALSE, verbose = FALSE
   )
   significant_keys <- empirical_pair_key(significant)
-  list(
-    epilink = align_empirical_result(
-      results, pairs, epilink_id, epilink_label, alpha,
+  calibre_result <- align_empirical_result(
+      results, pairs, calibre_id, calibre_label, alpha,
       operational_keys = significant_keys
-    ),
+    )
+  list(
+    calibre = calibre_result,
+    epilink = calibre_result,
     glm = align_empirical_result(results, pairs, glm_id, glm_label, alpha)
   )
 }
@@ -227,7 +232,7 @@ fit_empirical_scent <- function(object, pairs, alpha, seed,
     meta.data = metadata, peak.info = peak_info,
     covariates = as.character(covariates), celltypes = "celltypes"
   )
-  scent_object <- with_epilink_seed(as.integer(seed), SCENT::SCENT_algorithm(
+  scent_object <- with_calibre_seed(as.integer(seed), SCENT::SCENT_algorithm(
     scent_object, celltype = "all", ncores = as.integer(n_cores),
     regr = "poisson", bin = TRUE
   ))
@@ -274,10 +279,10 @@ fit_empirical_signac <- function(object, pairs, alpha, seed, n_cores = 1L) {
     genes.use = unique(pairs$gene), pvalue_cutoff = 1, score_cutoff = 0,
     verbose = FALSE
   )
-  linked <- with_epilink_seed(as.integer(seed), try(run_linkpeaks(), silent = TRUE))
+  linked <- with_calibre_seed(as.integer(seed), try(run_linkpeaks(), silent = TRUE))
   if (inherits(linked, "try-error")) {
     if (requireNamespace("future", quietly = TRUE)) future::plan(future::sequential)
-    linked <- with_epilink_seed(as.integer(seed), run_linkpeaks())
+    linked <- with_calibre_seed(as.integer(seed), run_linkpeaks())
   }
   links <- as.data.frame(Signac::Links(linked[["ATAC"]]))
   if (!nrow(links)) {
@@ -291,28 +296,179 @@ fit_empirical_signac <- function(object, pairs, alpha, seed, n_cores = 1L) {
   align_empirical_result(links, pairs, "signac", "Signac", alpha)
 }
 
+#' Cache only the selected cells' original fragments.
+#'
+#' Unlike the count-based methods, ArchR cannot consume a permuted peak-count
+#' matrix.  It builds an Arrow file from a bgzip/tabix fragment file, so the
+#' empirical null is generated by remapping the fourth (barcode) column of
+#' the original fragments.  This cache avoids scanning the full PBMC fragment
+#' file once for every replicate.
+prepare_empirical_fragment_cache <- function(fragment_file, selected_cells,
+                                             cache_file, cells_file = NULL,
+                                             overwrite = FALSE) {
+  selected_cells <- as.character(selected_cells)
+  if (anyDuplicated(selected_cells)) {
+    stop("Selected fragment barcodes must be unique", call. = FALSE)
+  }
+  cache_index <- paste0(cache_file, ".tbi")
+  cache_ok <- file.exists(cache_file) && file.exists(cache_index) &&
+    !isTRUE(overwrite)
+  if (cache_ok && !is.null(cells_file) && file.exists(cells_file)) {
+    cache_ok <- identical(as.character(readRDS(cells_file)), selected_cells)
+  }
+  if (cache_ok) return(cache_file)
+
+  dir.create(dirname(cache_file), recursive = TRUE, showWarnings = FALSE)
+  plain_file <- paste0(cache_file, ".tmp-", Sys.getpid(), ".tsv")
+  if (file.exists(cache_file)) unlink(cache_file)
+  if (file.exists(cache_index)) unlink(cache_index)
+  on.exit(if (file.exists(plain_file)) unlink(plain_file), add = TRUE)
+
+  input <- if (grepl("[.]gz$", fragment_file, ignore.case = TRUE)) {
+    gzfile(fragment_file, open = "rt")
+  } else file(fragment_file, open = "rt")
+  output <- file(plain_file, open = "wt")
+  on.exit(try(close(input), silent = TRUE), add = TRUE)
+  on.exit(try(close(output), silent = TRUE), add = TRUE)
+  selected_lookup <- selected_cells
+  repeat {
+    lines <- readLines(input, n = 100000L)
+    if (!length(lines)) break
+    comment <- startsWith(lines, "#")
+    keep <- comment
+    row_index <- which(!comment)
+    if (length(row_index)) {
+      fields <- strsplit(lines[row_index], "\t", fixed = TRUE)
+      has_barcode <- vapply(fields, length, integer(1)) >= 4L
+      keep[row_index[has_barcode]] <- vapply(
+        fields[has_barcode], function(x) x[[4L]] %in% selected_lookup,
+        logical(1)
+      )
+    }
+    writeLines(lines[keep], output)
+  }
+  close(input)
+  close(output)
+  gz_file <- Rsamtools::bgzip(plain_file, dest = cache_file, overwrite = TRUE)
+  Rsamtools::indexTabix(gz_file, format = "bed")
+  if (!is.null(cells_file)) saveRDS(selected_cells, cells_file)
+  cache_file
+}
+
+#' Write one ArchR-compatible empirical-null fragment file.
+#' @param source_to_target Named character vector, names are source barcodes
+#'   and values are target barcodes.  This is the inverse orientation of the
+#'   permutation matrix: target[j] receives source[permutation[j]].
+write_empirical_fragment_replicate <- function(cache_file, source_to_target,
+                                               output_file) {
+  if (!file.exists(cache_file) || !file.exists(paste0(cache_file, ".tbi"))) {
+    stop("Cached empirical fragments are missing or not indexed", call. = FALSE)
+  }
+  dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
+  output_index <- paste0(output_file, ".tbi")
+  if (file.exists(output_file)) unlink(output_file)
+  if (file.exists(output_index)) unlink(output_index)
+  plain_file <- paste0(output_file, ".tmp-", Sys.getpid(), ".tsv")
+  on.exit(if (file.exists(plain_file)) unlink(plain_file), add = TRUE)
+  input <- gzfile(cache_file, open = "rt")
+  output <- file(plain_file, open = "wt")
+  on.exit(try(close(input), silent = TRUE), add = TRUE)
+  on.exit(try(close(output), silent = TRUE), add = TRUE)
+  repeat {
+    lines <- readLines(input, n = 100000L)
+    if (!length(lines)) break
+    comment <- startsWith(lines, "#")
+    row_index <- which(!comment)
+    if (length(row_index)) {
+      fields <- strsplit(lines[row_index], "\t", fixed = TRUE)
+      for (i in seq_along(fields)) {
+        barcode <- fields[[i]][[4L]]
+        replacement <- unname(source_to_target[barcode])
+        if (length(replacement) == 1L && !is.na(replacement)) {
+          fields[[i]][[4L]] <- replacement
+          lines[row_index[[i]]] <- paste(fields[[i]], collapse = "\t")
+        }
+      }
+    }
+    writeLines(lines, output)
+  }
+  close(input)
+  close(output)
+  gz_file <- Rsamtools::bgzip(plain_file, dest = output_file, overwrite = TRUE)
+  Rsamtools::indexTabix(gz_file, format = "bed")
+  output_file
+}
+
+#' Run ArchR on one fragment-level empirical-null replicate.
+fit_empirical_archr <- function(object, pairs, alpha, seed, n_cores = 1L,
+                                fragment_file, sample_name, genome_name,
+                                work_directory) {
+  if (!exists("run_archr_real", mode = "function")) {
+    stop("run_archr_real() is not available; source R/archr_benchmark.R")
+  }
+  archr_requirements()
+  rna <- Seurat::GetAssayData(object, assay = "RNA", layer = "counts")
+  atac <- Seurat::GetAssayData(object, assay = "ATAC", layer = "counts")
+  peak_names <- rownames(atac)
+  if (is.null(peak_names) && methods::is(atac, "Matrix")) {
+    peak_names <- methods::slot(atac, "Dimnames")[[1L]]
+  }
+  if (is.null(peak_names)) peak_names <- dimnames(atac)[[1L]]
+  if (is.null(peak_names) || !length(peak_names)) {
+    stop("ArchR empirical-null ATAC matrix has no peak names", call. = FALSE)
+  }
+  rownames(atac) <- peak_names
+  colnames(atac) <- colnames(rna)
+  linked <- run_archr_real(
+    rna = rna, atac = atac, pairs = pairs,
+    keep_cells = colnames(rna), fragment_file = fragment_file,
+    sample_name = sample_name, genome_name = genome_name,
+    output_dir = work_directory, fdr = alpha,
+    n_cores = n_cores, seed = seed
+  )
+  archr_results <- linked$results
+  # ArchR versions differ in whether addPeak2GeneLinks() emits Pval when
+  # empirical/permuted p-values are disabled.  FDR is still its native
+  # adjusted significance measure; use it as a finite audit p-value only when
+  # no raw Pval is available, while retaining native FDR in padj.
+  if (!any(is.finite(archr_results$pval)) && "FDR" %in% names(archr_results)) {
+    archr_results$pval <- archr_results$FDR
+  }
+  significant_keys <- empirical_pair_key(linked$significant)
+  aligned <- align_empirical_result(
+    archr_results, pairs, "archr", "ArchR", alpha,
+    operational_keys = significant_keys
+  )
+  aligned
+}
+
 #' Fit one configured method on one empirical-null dataset
 fit_empirical_null_method <- function(object, pairs, method_id, alpha,
                                       covariates, seed, n_cores = 1L,
                                       selection = "rate", binarize_atac = TRUE,
-                                      epilink_correction = TRUE,
-                                      epilink_conservative = TRUE,
+                                      calibre_correction = TRUE,
+                                      calibre_conservative = TRUE,
                                       scmultimap_irls = TRUE,
-                                      scent_cores = 1L) {
+                                      scent_cores = 1L,
+                                      archr_fragment_file = NULL,
+                                      archr_sample_name = "pbmc",
+                                      archr_genome_name = "hg38",
+                                      archr_work_directory = NULL) {
+  method_id <- calibre_output_method_id(method_id)
   registry <- empirical_null_methods()
   if (!method_id %in% registry$method_id) {
     stop("Unknown empirical-null method: ", method_id, call. = FALSE)
   }
-  if (method_id %in% c("epilink_poisson", "epilink_nb")) {
-    family <- sub("^epilink_", "", method_id)
-    fitted <- fit_empirical_epilink_family(
+  if (method_id %in% c("calibre_poisson", "calibre_nb")) {
+    family <- sub("^calibre_", "", method_id)
+    fitted <- fit_empirical_calibre_family(
       object, pairs, family = family, alpha = alpha,
       covariates = covariates, n_cores = n_cores, seed = seed,
       selection = selection, binarize_atac = binarize_atac,
-      correction = epilink_correction,
-      conservative = epilink_conservative
+      correction = calibre_correction,
+      conservative = calibre_conservative
     )
-    return(fitted$epilink)
+    return(fitted$calibre)
   }
   if (method_id %in% c("glm_poisson", "glm_nb")) {
     family <- sub("^glm_", "", method_id)
@@ -333,6 +489,14 @@ fit_empirical_null_method <- function(object, pairs, method_id, alpha,
       n_cores = scent_cores, covariates = covariates
     ))
   }
+  if (method_id == "archr") {
+    return(fit_empirical_archr(
+      object, pairs, alpha = alpha, seed = seed, n_cores = n_cores,
+      fragment_file = archr_fragment_file,
+      sample_name = archr_sample_name, genome_name = archr_genome_name,
+      work_directory = archr_work_directory
+    ))
+  }
   fit_empirical_signac(
     object, pairs, alpha = alpha, seed = seed, n_cores = n_cores
   )
@@ -340,11 +504,12 @@ fit_empirical_null_method <- function(object, pairs, method_id, alpha,
 
 #' Return the result files produced by one independent method job
 empirical_null_method_group <- function(method_id) {
-  if (method_id %in% c("epilink_poisson", "glm_poisson")) {
-    return(c("epilink_poisson", "glm_poisson"))
+  method_id <- calibre_output_method_id(method_id)
+  if (method_id %in% c("calibre_poisson", "glm_poisson")) {
+    return(c("calibre_poisson", "glm_poisson"))
   }
-  if (method_id %in% c("epilink_nb", "glm_nb")) {
-    return(c("epilink_nb", "glm_nb"))
+  if (method_id %in% c("calibre_nb", "glm_nb")) {
+    return(c("calibre_nb", "glm_nb"))
   }
   method_id
 }
@@ -354,30 +519,39 @@ fit_empirical_null_method_group <- function(object, pairs, method_id, alpha,
                                             covariates, seed, n_cores = 1L,
                                             selection = "rate",
                                             binarize_atac = TRUE,
-                                            epilink_correction = TRUE,
-                                            epilink_conservative = TRUE,
+                                            calibre_correction = TRUE,
+                                            calibre_conservative = TRUE,
                                             scmultimap_irls = TRUE,
-                                            scent_cores = 1L) {
+                                            scent_cores = 1L,
+                                            archr_fragment_file = NULL,
+                                            archr_sample_name = "pbmc",
+                                            archr_genome_name = "hg38",
+                                            archr_work_directory = NULL) {
+  method_id <- calibre_output_method_id(method_id)
   group <- empirical_null_method_group(method_id)
-  if (length(group) == 2L && grepl("^epilink_", group[[1]])) {
-    family <- sub("^epilink_", "", group[[1]])
-    fitted <- fit_empirical_epilink_family(
+  if (length(group) == 2L && grepl("^calibre_", group[[1]])) {
+    family <- sub("^calibre_", "", group[[1]])
+    fitted <- fit_empirical_calibre_family(
       object, pairs, family = family, alpha = alpha,
       covariates = covariates, n_cores = n_cores, seed = seed,
       selection = selection, binarize_atac = binarize_atac,
-      correction = epilink_correction,
-      conservative = epilink_conservative
+      correction = calibre_correction,
+      conservative = calibre_conservative
     )
-    return(setNames(list(fitted$epilink, fitted$glm), group))
+    return(setNames(list(fitted$calibre, fitted$glm), group))
   }
   one_result <- fit_empirical_null_method(
     object, pairs, method_id = group[[1]], alpha = alpha,
     covariates = covariates, seed = seed, n_cores = n_cores,
     selection = selection, binarize_atac = binarize_atac,
-    epilink_correction = epilink_correction,
-    epilink_conservative = epilink_conservative,
+    calibre_correction = calibre_correction,
+    calibre_conservative = calibre_conservative,
     scmultimap_irls = scmultimap_irls,
-    scent_cores = scent_cores
+    scent_cores = scent_cores,
+    archr_fragment_file = archr_fragment_file,
+    archr_sample_name = archr_sample_name,
+    archr_genome_name = archr_genome_name,
+    archr_work_directory = archr_work_directory
   )
   setNames(list(one_result), group)
 }

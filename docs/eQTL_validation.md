@@ -1,4 +1,4 @@
-# EpiLink eQTL validation
+# Calibre eQTL validation
 
 ## Scope
 
@@ -23,7 +23,7 @@ predictions.
 4. Use pgBoost's released 1000 Genomes MAC>5 SNP BED as the common-variant
    background.  Convert BED coordinates to one-based GRCh38 coordinates.
 5. Exclude fine-mapped variants within 1 kb of the target TSS and use the same
-   500 kb cis window as EpiLink candidate-pair generation.
+   500 kb cis window as Calibre candidate-pair generation.
 
 Raw-file MD5 hashes and processed row counts are under
 `reference/eQTL/shared/processed/`.
@@ -55,19 +55,19 @@ The primary continuous ranks are:
 
 | Method | Primary rank | Evidence sensitivity rank |
 |--------|--------------|---------------------------|
-| EpiLink Poisson/NB | `abs(beta)` | `abs(zval)` |
+| Calibre Poisson/NB | `abs(beta)` | `abs(zval)` |
 | Poisson/NB GLM | `abs(beta)` | `abs(zval)` |
 | scMultiMap | signed `cor` | signed `test_stat` |
 | Signac | signed `score` | signed `zscore` |
 
-EpiLink and its paired GLM use absolute beta/z-value ranks.  This matches the
-two-sided EpiLink significance calibration and avoids discarding negative
+Calibre and its paired GLM use absolute beta/z-value ranks.  This matches the
+two-sided Calibre significance calibration and avoids discarding negative
 links, since the OneK1K causal-link labels do not encode effect direction.
 Ranks, rather than raw values, make score scales comparable across methods.
 
-EpiLink and its paired GLM use the same fitted `all_pairs` coefficients in this
+Calibre and its paired GLM use the same fitted `all_pairs` coefficients in this
 project.  Their beta- and z-ranked curves must therefore coincide.  The separate
-native-significance benchmark can differ because EpiLink and the GLM select
+native-significance benchmark can differ because Calibre and the GLM select
 different links through empirical-null versus conventional FDR calibration.
 
 The two validation questions are intentionally separate.  eQTL1 evaluates the

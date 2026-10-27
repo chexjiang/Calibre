@@ -61,10 +61,10 @@ benchmarks:
     LCL: Bcell
 
 methods:
-  epilink_poisson:
+  calibre_poisson:
     primary_score: beta
     evidence_score: zval
-  epilink_nb:
+  calibre_nb:
     primary_score: beta
     evidence_score: zval
   poisson_glm:

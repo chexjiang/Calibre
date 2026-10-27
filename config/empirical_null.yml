@@ -9,11 +9,14 @@ parallel_replicates: 10
 replicates_per_folder: 100
 per_replicate_cores: 1
 scent_cores: 1
+archr_cores: 1
+archr_keep_fragments: false
+archr_keep_work: false
 selection: rate
 binarize_atac: true
 covariates:
   - log(nCount_RNA)
-epilink_correction: true
-epilink_conservative: true
+calibre_correction: true
+calibre_conservative: true
 scmultimap_irls: true
 output_dir: results/simulation/empirical_null

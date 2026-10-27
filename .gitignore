@@ -1,4 +1,4 @@
-# EpiLink Git ignore rules
+# Calibre Git ignore rules
 #
 # Principle: commit source code, configuration, documentation, tests, and
 # reproducibility manifests. Keep large research data and generated outputs
@@ -9,11 +9,16 @@
 # Large research data
 # -----------------------------------------------------------------------------
 
-# The data/ and reference/ trees contain FASTQ, SRA, H5AD, RDS, genome/index
-# files, and other large inputs. Their README files and processing scripts are
-# explicitly unignored below.
-/data/**
-/reference/**
+# The data/ tree contains local inputs, preprocessing scripts, and generated
+# intermediates. Keep it outside the Calibre repository entirely.
+/data/
+
+# Local-only workflow code and auxiliary materials. These remain available in
+# the workspace but are not part of the Calibre repository release.
+/scripts/
+/tools/
+/tests/
+/reference/
 
 # Historical snapshots and downloaded inputs.
 /incoming/
@@ -32,6 +37,13 @@
 
 /results/
 /logs/
+/figure/
+/figures/
+/QualityControl/
+/ArchRLogs/
+/.Rcheck/
+*.arrow
+*.bgz.tbi
 
 # Common generated output formats. Final, selected figures should be copied to
 # a separately reviewed release/ directory if they need to be saved.
@@ -44,39 +56,6 @@
 *.fdb_latexmk
 *.fls
 *.synctex.gz
-
-
-# -----------------------------------------------------------------------------
-# Keep documentation and reproducibility code inside data/reference trees
-# -----------------------------------------------------------------------------
-
-# Unignore directories so the files below can be tracked.
-!/data/**/
-!/reference/**/
-
-# Dataset documentation and small reproducibility instructions.
-!/data/**/*.md
-!/data/**/README.txt
-!/reference/**/*.md
-!/reference/**/README.txt
-
-# Download, import, preprocessing, and validation scripts.
-!/data/**/*.R
-!/data/**/*.Rmd
-!/data/**/*.sh
-!/data/**/*.py
-!/reference/**/*.R
-!/reference/**/*.Rmd
-!/reference/**/*.sh
-!/reference/**/*.py
-
-# Checksum/provenance manifests may be committed when they contain metadata
-# only. Large raw tables should remain ignored and be added deliberately with
-# `git add -f` only after review.
-!/data/**/*manifest*.tsv
-!/reference/**/*manifest*.tsv
-!/data/**/*checksums*.txt
-!/reference/**/*checksums*.txt
 
 
 # -----------------------------------------------------------------------------

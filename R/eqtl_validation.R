@@ -181,13 +181,14 @@ make_ranked_validation_units <- function(universe, eqtl, pip_threshold = 0.5) {
   unique(units[, .(variant_id, peak, gene, eqtl_gene, pip, positive)])
 }
 
-# EpiLink's significance calibration is two-sided: EpiLinkFilter() applies
+# Calibre's significance calibration is two-sided: CalibreFilter() applies
 # abs(beta) or abs(zval).  The eQTL validation labels also do not encode effect
 # direction, so both directions must be eligible for ranking.  Keep the
 # transform method-specific because the other methods expose different score
 # semantics.
 eqtl_rank_score <- function(score, method) {
-  if (method %in% c("epilink_poisson", "epilink_nb",
+  method <- calibre_output_method_id(method)
+  if (method %in% c("calibre_poisson", "calibre_nb",
                    "poisson_glm", "nb_glm")) {
     abs(score)
   } else {

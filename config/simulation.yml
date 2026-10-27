@@ -9,14 +9,14 @@ defaults:
   nb_size: 2.0
   zero_inflation: 0.30
   fdr: 0.10
-  epilink_correction: true
-  epilink_conservative: true
+  calibre_correction: true
+  calibre_conservative: true
   seed: 20260818
   methods:
     - glm_poisson_bh
     - glm_nb_bh
-    - epilink_poisson_residual
-    - epilink_nb_residual
+    - calibre_poisson_residual
+    - calibre_nb_residual
     - scmultimap
     - signac
   include_scent: false

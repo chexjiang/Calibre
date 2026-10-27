@@ -1,0 +1,47 @@
+output_dir: results/simulation/dynamic
+data_generating_models:
+  - poisson
+  - nb
+  - zinb
+n_cells:
+  - 200
+  - 400
+  - 800
+n_pairs: 500
+n_replicates: 10
+effect_fraction: 0.20
+effect_sizes:
+  - 0.0
+  - 0.2
+  - 0.4
+  - 0.6
+  - 0.8
+  - 1.0
+  - 1.2
+  - 1.4
+  - 1.6
+dynamic_shapes:
+  - linear
+  - early
+  - late
+  - reversal
+atac_probability: 0.20
+accessibility_independent_of_pseudotime: true
+intercept: 1.0
+atac_effect: 0.50
+expression_trend: 1.0
+nb_size: 10.0
+zero_inflation: 0.30
+fdr: 0.10
+pseudotime_formula: "s(pseudotime, k = 5, bs = 'tp')"
+null_generation: s
+calibre_correction: true
+calibre_conservative: true
+methods:
+  - calibre_dynamic_poisson
+  - calibre_dynamic_nb
+  - gam_dynamic_poisson
+  - gam_dynamic_nb
+seed: 20261015
+n_cores: 8
+pair_cores: 1

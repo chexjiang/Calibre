@@ -7,7 +7,7 @@
 run_scent_simulation(simulation, q = 0.1, seed = 1L, n_cores = 1L)
 }
 \arguments{
-\item{simulation}{Output from \code{\link[=simulate_epilink_data]{simulate_epilink_data()}}.}
+\item{simulation}{Output from \code{\link[=simulate_calibre_data]{simulate_calibre_data()}}.}
 
 \item{q}{Target FDR.}
 

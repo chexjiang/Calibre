@@ -1,4 +1,4 @@
-Package: EpiLink
+Package: Calibre
 Title: Cell-Type-Specific Enhancer-Gene Link Inference
 Version: 0.1.0
 Authors@R: person("Chenxin", "Jiang", role = c("aut", "cre"),
@@ -17,8 +17,11 @@ Imports:
     GenomicRanges,
     GenomeInfoDb,
     IRanges,
+    mgcv,
     MASS,
     Matrix,
+    data.table,
+    methods,
     parallel,
     pbmcapply,
     S4Vectors,
@@ -27,9 +30,18 @@ Imports:
     stats
 Suggests:
     EnsDb.Hsapiens.v86,
+    ArchR,
     SCENT,
     scMultiMap,
+    SingleCellExperiment,
+    SummarizedExperiment,
+    ensembldb,
+    future,
     ggplot2,
+    rhdf5,
+    Rsamtools,
+    rtracklayer,
+    scales,
     testthat (>= 3.0.0),
     yaml
 Config/testthat/edition: 3

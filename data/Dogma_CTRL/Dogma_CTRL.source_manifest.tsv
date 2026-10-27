@@ -1,2 +1,0 @@
-condition	lysis	matrix_prefix	metrics_file	fragment_file
-CTRL	LLL	GSM5065525_LLL_CTRL_GExp_ATAC_filtered	GSM5065524_LLL_CTRL_per_barcode_metrics.csv.gz	GSM5065524_LLL_CTRL_fragments.tsv.gz

@@ -14,7 +14,9 @@ defaults:
 
 pbmc:
   rna: data/pbmc/pbmc_multimodal.rna.rds
-  atac: data/pbmc/pbmc_multimodal.atac.rds
+  atac: data/pbmc/pbmc_multimodal.atac_pc.rds
+  fragments: data/pbmc/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz
+  archr_sample_name: pbmc
   metadata: data/pbmc/pbmc_multimodal.meta.rds
   candidate_pairs: data/pbmc/pbmc_gene_peak_df.rds
   celltype_column: newCT
@@ -32,6 +34,21 @@ pbmc:
 bmmc:
   rna: data/bmmc/NeurIPS_multiome.rna.rds
   atac: data/bmmc/NeurIPS_multiome.atac.rds
+  archr_fragment_barcode_suffix: "-1"
+  fragments:
+    - data/bmmc/raw/s1d1_atac_fragments.tsv.gz
+    - data/bmmc/raw/s1d2_atac_fragments.tsv.gz
+    - data/bmmc/raw/s1d3_atac_fragments.tsv.gz
+    - data/bmmc/raw/s2d1_atac_fragments.tsv.gz
+    - data/bmmc/raw/s2d4_atac_fragments.tsv.gz
+    - data/bmmc/raw/s2d5_atac_fragments.tsv.gz
+    - data/bmmc/raw/s3d10_atac_fragments.tsv.gz
+    - data/bmmc/raw/s3d3_atac_fragments.tsv.gz
+    - data/bmmc/raw/s3d6_atac_fragments.tsv.gz
+    - data/bmmc/raw/s3d7_atac_fragments.tsv.gz
+    - data/bmmc/raw/s4d1_atac_fragments.tsv.gz
+    - data/bmmc/raw/s4d8_atac_fragments.tsv.gz
+    - data/bmmc/raw/s4d9_atac_fragments.tsv.gz
   metadata: data/bmmc/NeurIPS_multiome.meta.rds
   candidate_pairs: data/bmmc/NeurIPS_multiome.gene_peak_df.rds
   celltype_column: newCT
@@ -52,8 +69,12 @@ bmmc:
 Dogma_CTRL:
   rna: data/Dogma_CTRL/Dogma_CTRL.rna.rds
   atac: data/Dogma_CTRL/Dogma_CTRL.atac.rds
+  atac_pc: data/Dogma_CTRL/Dogma_CTRL.atac_pc.rds
+  fragments: data/Dogma_raw/GSM5065524_LLL_CTRL_fragments.tsv.gz
+  archr_sample_name: CTRL_LLL
   metadata: data/Dogma_CTRL/Dogma_CTRL.meta.rds
   candidate_pairs: data/Dogma_CTRL/Dogma_CTRL.gene_peak_df.rds
+  candidate_pairs_pc: data/Dogma_CTRL/Dogma_CTRL.gene_peak_df_pc.rds
   celltype_column: newCT
   batch_column: null
   covariates:
@@ -69,8 +90,12 @@ Dogma_CTRL:
 Dogma_STIM:
   rna: data/Dogma_STIM/Dogma_STIM.rna.rds
   atac: data/Dogma_STIM/Dogma_STIM.atac.rds
+  atac_pc: data/Dogma_STIM/Dogma_STIM.atac_pc.rds
+  fragments: data/Dogma_raw/GSM5065527_LLL_STIM_fragments.tsv.gz
+  archr_sample_name: STIM_LLL
   metadata: data/Dogma_STIM/Dogma_STIM.meta.rds
   candidate_pairs: data/Dogma_STIM/Dogma_STIM.gene_peak_df.rds
+  candidate_pairs_pc: data/Dogma_STIM/Dogma_STIM.gene_peak_df_pc.rds
   celltype_column: newCT
   batch_column: null
   covariates:
@@ -169,6 +194,8 @@ Brain:
 Brain2:
   rna: data/Brain2/Brain2.rna.rds
   atac: data/Brain2/Brain2.atac.rds
+  fragments: data/Brain2/raw/GSE214979_atac_fragments.tsv.gz
+  archr_sample_name: Brain2
   metadata: data/Brain2/Brain2.meta.rds
   candidate_pairs: data/Brain2/Brain2.gene_peak_df.rds
   celltype_column: newCT
@@ -182,8 +209,45 @@ Brain2:
   diff_donor_column: donor
   diff_covariates:
     - log(nCount_RNA)
+  scmultimap_permutations: 100
   output_dir: results/Brain2
   benchmark_output_dir: results/real/Brain2
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+
+Tonsil:
+  # (T, B, GCBC, PC, Myeloid, FDC, epithelial)
+  rna: data/Tonsil/Tonsil.rna.rds
+  atac: data/Tonsil/Tonsil.atac.rds
+  metadata: data/Tonsil/Tonsil.meta.rds
+  candidate_pairs: data/Tonsil/Tonsil.gene_peak_df.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+  batch_column: donor
+  output_dir: results/Tonsil
+  benchmark_output_dir: results/real/Tonsil
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+
+Intestine:
+  # (T, B, Plasma, Myeloid, CyclingImmune, Mast)
+  rna: data/Intestine/Intestine.rna.rds
+  atac: data/Intestine/Intestine.atac.rds
+  metadata: data/Intestine/Intestine.meta.rds
+  candidate_pairs: data/Intestine/Intestine.gene_peak_df.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+  batch_column: donor
+  output_dir: results/Intestine
+  benchmark_output_dir: results/real/Intestine
   genome: hg38
   conservative: false
   crispr_reference_build: hg38
@@ -211,6 +275,8 @@ Arthritis:
 Pituitary:
   rna: data/Pituitary/Pituitary.rna.rds
   atac: data/Pituitary/Pituitary.atac.rds
+  fragments: data/Pituitary_raw/raw/GSM5391776_HF1M-Cryo_atac_fragments.tsv.gz
+  archr_sample_name: Pituitary
   metadata: data/Pituitary/Pituitary.meta.rds
   candidate_pairs: data/Pituitary/Pituitary.gene_peak_df.rds
   celltype_column: newCT
@@ -225,4 +291,136 @@ Pituitary:
   crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
   crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
   
+Heart:
+# (Ventricular cardiomyocyte, Atrial cardiomyocyte, Fibroblast, Endothelial cell)
+  rna: data/Heart/Heart.rna.rds
+  atac: data/Heart/Heart.atac.rds
+  metadata: data/Heart/Heart.meta.rds
+  candidate_pairs: data/Heart/Heart.gene_peak_df.rds
+  # The Heart Cell Atlas fragments are split by library.  run_real.R reads
+  # this manifest and passes all tabix-indexed fragment files to ArchR.
+  fragment_manifest: data/Heart/raw/Heart_VCM_fragment_manifest.tsv
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+  batch_column: donor
+  output_dir: results/Heart
+  benchmark_output_dir: results/real/Heart
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
   
+
+Skin:
+# (keratinocyte, melanocyte, vascular endothelium, fibroblast)
+  rna: data/Skin/Skin.rna.rds
+  atac: data/Skin/Skin.atac.rds
+  # The raw fragment TSV is not present locally. These official ArchR Arrow
+  # files contain the indexed fragments and PeakMatrix and can be used
+  # directly by the ArchR benchmark runner.
+  archr_arrow_files:
+    - data/Skin/raw/ATAC_obj_clustered_peaks_final_decontx/ArrowFiles/T45_b19_Skin_PCW17.arrow
+    - data/Skin/raw/ATAC_obj_clustered_peaks_final_decontx/ArrowFiles/T11_b19_Skin_PCW19.arrow
+    - data/Skin/raw/ATAC_obj_clustered_peaks_final_decontx/ArrowFiles/T408S_b19_Skin_PCW19.arrow
+  archr_sample_name:
+    - T45_b19_Skin_PCW17
+    - T11_b19_Skin_PCW19
+    - T408S_b19_Skin_PCW19
+  metadata: data/Skin/Skin.meta.rds
+  candidate_pairs: data/Skin/Skin.gene_peak_df.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+  batch_column: donor
+  output_dir: results/Skin
+  benchmark_output_dir: results/real/Skin
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+  
+Liver:
+# (hepatocyte, stellate, Kupffer, cholangiocyte)
+  rna: data/Liver/Liver.rna.rds
+  atac: data/Liver/Liver.atac.rds
+  metadata: data/Liver/Liver.meta.rds
+  candidate_pairs: data/Liver/Liver.gene_peak_df.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+  batch_column: donor
+  output_dir: results/Liver
+  benchmark_output_dir: results/real/Liver
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+  
+
+Kidney:
+  # (PT, TAL)
+  rna: data/Kidney/Kidney.rna.rds
+  atac: data/Kidney/Kidney.atac_pc.rds
+  fragments:
+    - data/Kidney/raw/GSE254185_Library1_atac_fragments.tsv.gz
+    - data/Kidney/raw/GSE254185_Library2_atac_fragments.tsv.gz
+    - data/Kidney/raw/GSE254185_Library3_atac_fragments.tsv.gz
+    - data/Kidney/raw/GSE254185_Library4_atac_fragments.tsv.gz
+    - data/Kidney/raw/GSE254185_Library5_atac_fragments.tsv.gz
+    - data/Kidney/raw/GSE254185_Library6_atac_fragments.tsv.gz
+  # Metadata cell IDs use l1_, ..., l6_; these names are paired with the
+  # six Library1, ..., Library6 fragment files above.
+  archr_sample_name:
+    - l1
+    - l2
+    - l3
+    - l4
+    - l5
+    - l6
+  metadata: data/Kidney/Kidney.meta.rds
+  candidate_pairs: data/Kidney/Kidney.gene_peak_df_pc.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+    - condition
+  subset_covariates:
+    - log(nCount_RNA)
+  batch_column: donor
+  diff_condition_column: condition
+  # Calibre uses the first level as reference and the second as comparison.
+  diff_reference_condition: Control
+  diff_comparison_condition: UUO
+  diff_donor_column: donor
+  diff_covariates:
+    - log(nCount_RNA)
+  output_dir: results/Kidney
+  benchmark_output_dir: results/real/Kidney
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv
+
+HSPC:
+  # Human CD34+ HSPC multiome time course: 4 donors, days 2/3/4/7/10.
+  rna: data/HSPC/HSPC.rna.rds
+  atac: data/HSPC/HSPC.atac.rds
+  metadata: data/HSPC/HSPC.meta.rds
+  candidate_pairs: data/HSPC/HSPC.gene_peak_df.rds
+  celltype_column: newCT
+  covariates:
+    - log(nCount_RNA)
+    - donor
+    - day
+  batch_column: donor
+  output_dir: results/HSPC
+  benchmark_output_dir: results/real/HSPC
+  genome: hg38
+  conservative: false
+  crispr_reference_build: hg38
+  crispr_positive: reference/CRISPR/crispr_hg38_positive.tsv
+  crispr_negative: reference/CRISPR/crispr_hg38_negative.tsv

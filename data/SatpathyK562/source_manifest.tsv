@@ -1,7 +1,0 @@
-dataset	modality	IGVF_analysis_set	IGVF_file	assembly	role
-SatpathyK562	RNA	IGVFDS2018URDY	IGVFFI2641LMFU	GRCh38	unfiltered cell-by-gene HDF5 matrix
-SatpathyK562	MULTI-seq	IGVFDS2018URDY	IGVFFI5156ENLL	NA	cell-hashing barcode count matrix
-SatpathyK562	ATAC_fragments	IGVFDS2018URDY	IGVFFI0627MDWY	GRCh38	Tabix-indexed fragments
-SatpathyK562	ATAC_fragments_index	IGVFDS2018URDY	IGVFFI3930OIYP	GRCh38	fragments Tabix index
-SatpathyK562	ATAC_peaks	IGVFDS2018URDY	IGVFFI8318PQLH	GRCh38	released GRCh38 peak BED
-SatpathyK562	GEX_ATAC_barcode_whitelist	10x 737K-arc-v1	gex_737K-arc-v1.txt.gz / atac_737K-arc-v1.txt.gz	NA	line-aligned barcode translation for paired Multiome cells

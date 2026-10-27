@@ -13,10 +13,10 @@ reference:
   bootstrap_seed: 20261003
 
 methods:
-  epilink_poisson:
+  calibre_poisson:
     primary_score: beta
     evidence_score: zval
-  epilink_nb:
+  calibre_nb:
     primary_score: beta
     evidence_score: zval
   scmultimap:
@@ -30,7 +30,7 @@ ranking:
   top_fractions: [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.10, 0.20, 0.50, 1.00]
   recall_grid: [0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00]
 
-# Every ordinary results/real panel with complete EpiLink-Poisson, EpiLink-NB,
+# Every ordinary results/real panel with complete Calibre-Poisson, Calibre-NB,
 # scMultiMap and Signac outputs. Brain2 has no ordinary link outputs and
 # Brain2_diff is a differential-link analysis, so neither is mixed into this
 # benchmark.

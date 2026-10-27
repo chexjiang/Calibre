@@ -5,7 +5,7 @@
 #' @param seed Master seed.
 #' @return An integer vector of length `n`.
 #' @export
-epilink_pair_seeds <- function(n, seed = 123L) {
+calibre_pair_seeds <- function(n, seed = 123L) {
   if (length(n) != 1L || !is.finite(n) || n < 0 || n != as.integer(n)) {
     stop("n must be one non-negative integer", call. = FALSE)
   }
@@ -18,7 +18,7 @@ epilink_pair_seeds <- function(n, seed = 123L) {
   as.integer(((as.double(seed) - 1 + seq_len(n) - 1) %% modulus) + 1)
 }
 
-with_epilink_seed <- function(seed, code) {
+with_calibre_seed <- function(seed, code) {
   had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   if (had_seed) old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   on.exit({

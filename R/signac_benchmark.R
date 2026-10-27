@@ -2,10 +2,14 @@
 
 run_signac_benchmark <- function(object, pairs_df, q = 0.1,
                                  distance = 20000, n_sample = 200L,
-                                 verbose = FALSE) {
+                                 n_cores = 1L, verbose = FALSE) {
   if (!requireNamespace("Signac", quietly = TRUE) ||
       !requireNamespace("Seurat", quietly = TRUE)) {
     stop("Signac and Seurat are required for the Signac benchmark")
+  }
+  n_cores <- as.integer(n_cores)
+  if (!is.finite(n_cores) || n_cores < 1L) {
+    stop("n_cores must be a positive integer")
   }
   object <- Seurat::NormalizeData(
     object, assay = "RNA", normalization.method = "LogNormalize",
@@ -26,22 +30,28 @@ run_signac_benchmark <- function(object, pairs_df, q = 0.1,
   gene_ranges$gene_name <- pairs_df$gene
   gene_ranges$gene_id <- pairs_df$gene
 
-  object <- suppressMessages(Signac::LinkPeaks(
-    object = object,
-    peak.assay = "ATAC",
-    expression.assay = "RNA",
-    peak.slot = "counts",
-    expression.slot = "data",
-    method = "pearson",
-    gene.coords = gene_ranges,
-    distance = distance,
-    min.cells = 0,
-    genes.use = unique(pairs_df$gene),
-    n_sample = as.integer(n_sample),
-    pvalue_cutoff = 1,
-    score_cutoff = 0,
-    verbose = verbose
-  ))
+  run_linkpeaks <- function() suppressMessages(Signac::LinkPeaks(
+      object = object,
+      peak.assay = "ATAC",
+      expression.assay = "RNA",
+      peak.slot = "counts",
+      expression.slot = "data",
+      method = "pearson",
+      gene.coords = gene_ranges,
+      distance = distance,
+      min.cells = 0,
+      genes.use = unique(pairs_df$gene),
+      n_sample = as.integer(n_sample),
+      pvalue_cutoff = 1,
+      score_cutoff = 0,
+      verbose = verbose
+    ))
+  if (n_cores > 1L && requireNamespace("future", quietly = TRUE)) {
+    old_future_plan <- future::plan()
+    on.exit(future::plan(old_future_plan), add = TRUE)
+    future::plan(future::multicore, workers = n_cores)
+  }
+  object <- run_linkpeaks()
   links <- as.data.frame(Signac::Links(object[["ATAC"]]))
   if (!nrow(links)) {
     return(data.frame(gene = pairs_df$gene, peak = pairs_df$peak,

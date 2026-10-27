@@ -1,55 +1,65 @@
-# EpiLink
+# Calibre
 
-EpiLink builds cell-type-specific enhancer-gene maps from paired single-cell
-RNA and ATAC measurements. This directory is the clean, reproducible rewrite;
-`incoming/` is an immutable historical snapshot and is never used as an output
-location.
+Calibre is an R package for inferring cell-type-specific enhancer–gene links
+from paired single-cell RNA and ATAC measurements. It fits count-regression
+models, generates residual-based synthetic null statistics, and calibrates a
+shared empirical false-discovery-rate threshold.
 
-## Layout
+## Repository contents
 
-- `R/`: tested method implementation.
-- `config/datasets.yml`: dataset-specific inputs and analysis settings.
-- `scripts/run_epilink.R`: command-line real-data runner.
-- `simulation/` and `scripts/run_simulation.R`: configured Poisson/NB/ZINB study.
-- `tests/testthat/`: unit and small end-to-end tests.
-- `incoming/`: original code, data, and results (ignored by Git).
-- `results/`: newly generated results (ignored by Git).
+- `R/`: Calibre implementation and supporting methods.
+- `man/`: package documentation.
+- `config/`: YAML configuration files for simulation and validation analyses.
+- `docs/`: methodological notes and analysis documentation.
+- `DESCRIPTION`, `NAMESPACE`, and `LICENSE`: R package metadata.
 
-## Test
+## Installation
 
-```bash
-Rscript -e 'testthat::test_dir("tests/testthat")'
-```
-
-## Run
-
-Run from the project root:
+From a local clone, install the package with:
 
 ```bash
-Rscript scripts/run_epilink.R pbmc Bcell poisson
-Rscript scripts/run_epilink.R pbmc Bcell nb
-Rscript scripts/run_epilink.R bmmc Myeloid poisson
-Rscript scripts/run_epilink.R bmmc Myeloid nb
+R CMD INSTALL .
 ```
 
-Run the model-based simulation profile and generate PDF plots:
+The required R dependencies are listed in `DESCRIPTION`. Optional integrations
+are listed under `Suggests`.
 
-```bash
-Rscript scripts/run_simulation.R model_based
-Rscript scripts/plot_model_based_simulation.R
+## Core API
+
+The main functions are:
+
+- `Calibre()`: infer enhancer–gene links for a Seurat multiome object.
+- `CalibreFilter()`: apply the calibrated FDR threshold to a Calibre result.
+- `CalibreDiff()`: compare enhancer–gene associations between conditions.
+- `CalibreDynamic()`: model associations that vary along pseudotime.
+- `Calibre_single()`: fit one enhancer–gene model.
+- `calibre_simulation_methods()`: list the configured simulation methods.
+- `simulate_calibre_data()`: generate paired RNA/ATAC simulation data.
+- `run_calibre_simulation()`: evaluate selected methods on simulated data.
+
+Example:
+
+```r
+library(Calibre)
+
+result <- Calibre(
+  object = multiome_object,
+  gene_peak_df = candidate_pairs,
+  celltype_col = "celltype",
+  family = "poisson",
+  returnObject = TRUE
+)
+
+significant_links <- CalibreFilter(
+  result,
+  stat = "zval",
+  fdrcutoff = 0.05
+)
 ```
 
-The empirical-null benchmark is run with `scripts/run_empirical_null.R` and
-its PDF is generated with `scripts/plot_empirical_null.R`.
+See the files under `man/` and the methodological notes under `docs/` for
+function arguments, return values, and analysis details.
 
-Formal EpiLink runs use the standardized Pearson residual bootstrap together
-with the multiplicative finite-cell correction and the plus-one empirical-FDP
-numerator. Use `diagnostic` for high-replicate global-null calibration and
-`power_pilot` for the small-effect sample-size pilot. See
-`docs/simulation_calibration.md` for the current findings and limitations.
-The `trend` profile adds the Signac benchmark and ten enhancer-effect sizes for
-the combined FDR/power figure.
+## License
 
-The runner validates all configured inputs before loading large matrices. New
-results are written below `results/`; existing files are not overwritten unless
-`--overwrite` is supplied.
+Calibre is released under the MIT License. See `LICENSE`.

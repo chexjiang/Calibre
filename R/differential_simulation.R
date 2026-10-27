@@ -3,11 +3,11 @@
 da_simulation_methods <- function() {
   data.frame(
     method_id = c(
-      "epilink_poisson", "epilink_nb", "glm_poisson", "glm_nb",
+      "calibre_poisson", "calibre_nb", "glm_poisson", "glm_nb",
       "scmultimap"
     ),
     method = c(
-      "EpiLink-Poisson", "EpiLink-NB", "Poisson-GLM", "NB-GLM",
+      "Calibre-Poisson", "Calibre-NB", "Poisson-GLM", "NB-GLM",
       "scMultiMap"
     ),
     stringsAsFactors = FALSE
@@ -50,7 +50,7 @@ simulate_da_data <- function(
   if (zero_inflation < 0 || zero_inflation >= 1) {
     stop("zero_inflation must be in [0, 1)", call. = FALSE)
   }
-  with_epilink_seed(as.integer(seed), {
+  with_calibre_seed(as.integer(seed), {
     donor_ids <- paste0("donor", seq_len(n_donors))
     donor <- factor(
       rep(donor_ids, each = cells_per_donor), levels = donor_ids
@@ -216,12 +216,12 @@ fit_da_glm <- function(simulation, family = c("poisson", "nb"), alpha = 0.1,
 #   exprs ~ condition + atac + atac:condition
 # and tests the interaction (the differential-association estimand).  This is
 # the differential analogue of the model-based simulation's theoretical GLM
-# branch; no EpiLink residual null or finite-cell correction is applied.
+# branch; no Calibre residual null or finite-cell correction is applied.
 fit_da_glm_theory <- function(simulation, object,
                                family = c("poisson", "nb"), alpha = 0.1,
                                n_cores = 1L) {
   family <- match.arg(family)
-  fitted <- EpiLinkDiff(
+  fitted <- CalibreDiff(
     object = object,
     gene_peak_df = simulation$pairs[, c("gene", "peak"), drop = FALSE],
     celltype_col = "newCT", family = family, celltype = NULL,
@@ -249,13 +249,13 @@ fit_da_glm_theory <- function(simulation, object,
   )
 }
 
-fit_da_epilink <- function(simulation, object,
+fit_da_calibre <- function(simulation, object,
                            family = c("poisson", "nb"), alpha = 0.1,
                            seed = 1L, n_cores = 1L,
                            null_generation = "s", correction = TRUE,
                            conservative = TRUE, donor_robust = FALSE) {
   family <- match.arg(family)
-  fitted <- EpiLinkDiff(
+  fitted <- CalibreDiff(
     object = object,
     gene_peak_df = simulation$pairs[, c("gene", "peak")],
     celltype_col = "newCT", family = family, celltype = NULL,
@@ -272,7 +272,7 @@ fit_da_epilink <- function(simulation, object,
   if (is.null(fitted)) {
     return(list(results = NULL, selected = integer(), n_fitted = 0L))
   }
-  results <- fitted@misc$EpiLink$res_df
+  results <- fitted@misc$Calibre$res_df
   selected_keys <- da_pair_keys(results[
     !is.na(results$significant) & results$significant,
     c("gene", "peak"), drop = FALSE
@@ -321,7 +321,7 @@ fit_da_scmultimap <- function(simulation, object, alpha = 0.1, seed = 1L,
   observed_diff <- case_result$covar - control_result$covar
 
   n_permutations <- max(1L, as.integer(n_permutations))
-  permutation_cells <- with_epilink_seed(
+  permutation_cells <- with_calibre_seed(
     as.integer(seed), lapply(seq_len(n_permutations), function(i) {
       sample(all_cells, length(case_cells), replace = FALSE)
     })
@@ -368,21 +368,21 @@ run_da_benchmark <- function(simulation, alpha = 0.1, seed = 1L,
                              scmultimap_irls = TRUE) {
   object <- make_da_seurat(simulation)
   registry <- da_simulation_methods()
-  method_seeds <- epilink_pair_seeds(nrow(registry), as.integer(seed))
+  method_seeds <- calibre_pair_seeds(nrow(registry), as.integer(seed))
   rows <- vector("list", nrow(registry))
   for (index in seq_len(nrow(registry))) {
     method_id <- registry$method_id[[index]]
     started <- proc.time()[["elapsed"]]
     fitted <- tryCatch({
-      if (method_id == "epilink_poisson") {
-        fit_da_epilink(
+      if (method_id == "calibre_poisson") {
+        fit_da_calibre(
           simulation, object, family = "poisson", alpha = alpha,
           seed = method_seeds[[index]], n_cores = pair_cores,
           null_generation = null_generation, correction = correction,
           conservative = conservative, donor_robust = donor_robust
         )
-      } else if (method_id == "epilink_nb") {
-        fit_da_epilink(
+      } else if (method_id == "calibre_nb") {
+        fit_da_calibre(
           simulation, object, family = "nb", alpha = alpha,
           seed = method_seeds[[index]], n_cores = pair_cores,
           null_generation = null_generation, correction = correction,

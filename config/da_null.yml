@@ -1,0 +1,24 @@
+dataset: Brain2
+celltype: Microglia
+celltype_column: newCT
+condition_column: condition
+donor_column: donor
+control_donor: "1238"
+case_donor: "4482"
+cells_per_donor: 200
+n_replicates: 1000
+n_pairs: 1000
+alpha: 0.05
+seed: 20261015
+parallel_replicates: 10
+per_replicate_cores: 1
+replicates_per_folder: 100
+selection: rate
+binarize_atac: true
+covariates:
+  - log(nCount_RNA)
+calibre_correction: true
+calibre_conservative: true
+scmultimap_irls: true
+scmultimap_permutations: 100
+output_dir: results/simulation/da_null
