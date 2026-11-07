@@ -9,59 +9,85 @@ Calibre(
   object,
   gene_peak_df,
   celltype_col = "newCT",
-  family = "poisson",
   celltype = NULL,
   covariates = NULL,
-  null_generation = "s",
+  fdrcutoff = 0.1,
+  ncore = 10,
   stat = "zval",
+  family = "poisson",
+  null_generation = "s",
   bin = TRUE,
   selection = "rate",
   returnObject = FALSE,
-  fdrcutoff = 0.05,
-  ncore = 10,
   theory = FALSE,
   conservative = FALSE,
   correction = FALSE,
   verbose = FALSE,
-  seed = 123
+  seed = 123,
+  progress_file = NULL,
+  progress_every = 10000L
 )
 }
 \arguments{
-\item{object}{Seurat object with RNA and ATAC assays.}
+\item{object}{Seurat object with \code{RNA} and \code{ATAC} assays; required,
+with no default.}
 
-\item{gene_peak_df}{Candidate pairs with \code{gene} and \code{peak} columns.}
+\item{gene_peak_df}{Data frame containing \code{gene} and \code{peak} columns;
+required, with no default.}
 
-\item{celltype_col}{Metadata cell-type column.}
+\item{celltype_col}{Metadata column used to select cells by cell type. The
+default is \code{"newCT"}.}
 
-\item{family}{Either \code{"poisson"} or \code{"nb"}.}
+\item{celltype}{Cell-type label to analyze. The default is \code{NULL}, which
+uses all cells.}
 
-\item{celltype}{Optional cell type; \code{NULL} uses all cells.}
+\item{covariates}{Optional cell-level covariates included in the GLM. The
+default is \code{NULL}.}
 
-\item{covariates}{Optional cell-level model terms.}
+\item{fdrcutoff}{Target FDR level. The default is \code{0.1}.}
 
-\item{null_generation}{Null generator; formal analyses use \code{"s"}.}
+\item{ncore}{Number of parallel workers on supported platforms. The default is
+\code{10}.}
 
-\item{stat}{Selection statistic.}
+\item{stat}{Test statistic used to rank pairs for FDR thresholding. The default
+is \code{"zval"}; \code{"pval"} and \code{"beta"} are also supported.}
 
-\item{bin}{Binarize ATAC counts.}
+\item{family}{GLM family. The default is \code{"poisson"}, with \code{"nb"} as
+the negative binomial alternative.}
 
-\item{selection}{Candidate-pair filtering strategy.}
+\item{null_generation}{Synthetic-null data generation scheme. The default,
+\code{"s"}, uses standardized Pearson-residual resampling.}
 
-\item{returnObject}{Return the Seurat object instead of significant rows.}
+\item{bin}{Whether to binarize ATAC counts before model fitting. The default is
+\code{TRUE}.}
 
-\item{fdrcutoff}{Target FDR.}
+\item{selection}{Candidate-pair filtering strategy. The default is
+\code{"rate"}, which keeps pairs with both gene expression and CRE
+accessibility detected in at least 5\% of cells.}
 
-\item{ncore}{Number of forked workers.}
+\item{returnObject}{Whether to return the updated Seurat object. The default is
+\code{FALSE}, which returns the significant CRE--gene data frame.}
 
-\item{theory}{Return BH-ready observed GLM results without null generation.}
+\item{theory}{Whether to return observed GLM results without generating a
+synthetic null. The default is \code{FALSE}.}
 
-\item{conservative}{Use the conservative FDR numerator offset.}
+\item{conservative}{Whether to use the more conservative FDR numerator offset.
+The default is \code{FALSE}.}
 
-\item{correction}{Apply the finite-cell correction in \code{\link[=CalibreFilter]{CalibreFilter()}}.}
+\item{correction}{Whether to apply the finite-cell correction during threshold
+calibration. The default is \code{FALSE}.}
 
-\item{verbose}{Report progress.}
+\item{verbose}{Whether to report fitting progress and the number of
+discoveries. The default is \code{FALSE}.}
 
-\item{seed}{Master seed used to generate pair-specific seeds.}
+\item{seed}{Master seed for reproducible pair-specific seeds. The default is
+\code{123}.}
+
+\item{progress_file}{Optional file to which parent-process progress messages
+are appended. The default is \code{NULL}.}
+
+\item{progress_every}{Number of pairs processed between progress updates. The
+default is \code{10000L}.}
 }
 \value{
 A Seurat object, significant-pair data frame, or theory result table.

@@ -208,49 +208,83 @@ Calibre_single <- function(
 # Main wrapper: run Calibre on all pairs in a Seurat object
 # -----------------------------------------------------------
 #' Run Calibre on a Seurat multiome object
-#' @param object Seurat object with RNA and ATAC assays.
-#' @param gene_peak_df Candidate pairs with `gene` and `peak` columns.
-#' @param celltype_col Metadata cell-type column.
-#' @param family Either `"poisson"` or `"nb"`.
-#' @param celltype Optional cell type; `NULL` uses all cells.
-#' @param covariates Optional cell-level model terms.
-#' @param null_generation Null generator; formal analyses use `"s"`.
-#' @param stat Selection statistic.
-#' @param bin Binarize ATAC counts.
-#' @param selection Candidate-pair filtering strategy.
-#' @param returnObject Return the Seurat object instead of significant rows.
-#' @param fdrcutoff Target FDR.
-#' @param ncore Number of forked workers.
-#' @param theory Return BH-ready observed GLM results without null generation.
-#' @param conservative Use the conservative FDR numerator offset.
-#' @param correction Apply the finite-cell correction in [CalibreFilter()].
-#' @param verbose Report progress.
-#' @param seed Master seed used to generate pair-specific seeds.
+#' @param object Seurat object with `RNA` and `ATAC` assays; required, with no
+#'   default.
+#' @param gene_peak_df Data frame containing `gene` and `peak` columns;
+#'   required, with no default.
+#' @param celltype_col Metadata column used to select cells by cell type. The
+#'   default is `"newCT"`.
+#' @param celltype Cell-type label to analyze. The default is `NULL`, which
+#'   uses all cells.
+#' @param covariates Optional cell-level covariates included in the GLM. The
+#'   default is `NULL`.
+#' @param fdrcutoff Target FDR level. The default is `0.1`.
+#' @param ncore Number of parallel workers on supported platforms. The default
+#'   is `10`.
+#' @param stat Test statistic used to rank pairs for FDR thresholding. The
+#'   default is `"zval"`; `"pval"` and `"beta"` are also supported.
+#' @param family GLM family. The default is `"poisson"`, with `"nb"` as the
+#'   negative binomial alternative.
+#' @param null_generation Synthetic-null data generation scheme. The default,
+#'   `"s"`, uses standardized Pearson-residual resampling.
+#' @param bin Whether to binarize ATAC counts before model fitting. The default
+#'   is `TRUE`.
+#' @param selection Candidate-pair filtering strategy. The default is
+#'   `"rate"`, which keeps pairs with both gene expression and CRE
+#'   accessibility detected in at least 5% of cells.
+#' @param returnObject Whether to return the updated Seurat object. The default
+#'   is `FALSE`, which returns the significant CRE--gene data frame.
+#' @param theory Whether to return observed GLM results without generating a
+#'   synthetic null. The default is `FALSE`.
+#' @param conservative Whether to use the more conservative FDR numerator
+#'   offset. The default is `FALSE`.
+#' @param correction Whether to apply the finite-cell correction during
+#'   threshold calibration. The default is `FALSE`.
+#' @param verbose Whether to report fitting progress and the number of
+#'   discoveries. The default is `FALSE`.
+#' @param seed Master seed for reproducible pair-specific seeds. The default is
+#'   `123`.
+#' @param progress_file Optional file to which parent-process progress messages
+#'   are appended. The default is `NULL`.
+#' @param progress_every Number of pairs processed between progress updates.
+#'   The default is `10000L`.
 #' @return A Seurat object, significant-pair data frame, or theory result table.
 #' @export
 Calibre <- function(
     object,
     gene_peak_df,
     celltype_col = "newCT",
-    family = "poisson",
     celltype = NULL,
     covariates = NULL,
-    null_generation = "s",
+    fdrcutoff = 0.1,
+    ncore = 10,
     stat = "zval",
+    family = "poisson",
+    null_generation = "s",
     bin = TRUE,
     selection = "rate",
     returnObject = FALSE,
-    fdrcutoff = 0.05,
-    ncore = 10,
     theory = FALSE,
     conservative = FALSE,
     correction = FALSE,
     verbose = FALSE,
-    seed = 123
+    seed = 123,
+    progress_file = NULL,
+    progress_every = 10000L
 ) {
   if (!inherits(object, "Seurat")) stop("object must be a Seurat object")
   if (!("RNA" %in% Seurat::Assays(object))) stop("object must contain RNA assay")
   if (!("ATAC" %in% Seurat::Assays(object))) stop("object must contain ATAC assay")
+  if (!is.null(progress_file) &&
+      (!is.character(progress_file) || length(progress_file) != 1L ||
+       is.na(progress_file) || !nzchar(progress_file))) {
+    stop("progress_file must be NULL or a non-empty file path")
+  }
+  if (!is.numeric(progress_every) || length(progress_every) != 1L ||
+      !is.finite(progress_every) || progress_every < 1) {
+    stop("progress_every must be a positive number")
+  }
+  progress_every <- as.integer(progress_every)
   meta <- object@meta.data
 
   if (!is.null(celltype)) {
@@ -296,13 +330,38 @@ Calibre <- function(
     res
   }
 
-  if (verbose) message("Fitting models in parallel (", ncore, " cores)...")
-  if (ncore > 1 && .Platform$OS.type != "windows") {
-    res_list <- pbmcapply::pbmclapply(seq_len(n_pair), fit_one_pair,
-                                     mc.cores = ncore, mc.set.seed = FALSE)
-  } else {
-    res_list <- lapply(seq_len(n_pair), fit_one_pair)
+  progress_message <- function(done, total, prefix = "Completed") {
+    line <- paste0(
+      "[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "] ",
+      prefix, " celltype models: ", done, "/", total
+    )
+    if (verbose) message(line)
+    if (!is.null(progress_file)) {
+      cat(line, "\n", file = progress_file, append = TRUE)
+    }
   }
+  if (verbose) message("Fitting celltype models in parallel (", ncore, " cores)...")
+  progress_message(0L, n_pair, prefix = "Starting")
+  batch_size <- min(progress_every, n_pair)
+  batch_starts <- seq.int(1L, n_pair, by = batch_size)
+  batch_ends <- pmin(batch_starts + batch_size - 1L, n_pair)
+  checkpoint_version <- if (identical(pseudotime_formula, "quadratic") &&
+                            !is.null(rescue_dispersion) &&
+                            !is.null(rescue_pseudotime_formula)) 2L else 1L
+  batch_results <- vector("list", length(batch_starts))
+  for (i_batch in seq_along(batch_starts)) {
+    batch_indices <- seq.int(batch_starts[[i_batch]], batch_ends[[i_batch]])
+    if (ncore > 1L && .Platform$OS.type != "windows") {
+      batch_results[[i_batch]] <- pbmcapply::pbmclapply(
+        batch_indices, fit_one_pair, mc.cores = ncore,
+        mc.set.seed = FALSE, ignore.interactive = TRUE
+      )
+    } else {
+      batch_results[[i_batch]] <- lapply(batch_indices, fit_one_pair)
+    }
+    progress_message(batch_ends[[i_batch]], n_pair)
+  }
+  res_list <- unlist(batch_results, recursive = FALSE)
   res_df <- do.call(rbind, Filter(Negate(is.null), res_list))
   if (is.null(res_df) || !nrow(res_df)) {
     warning("No valid results.")
@@ -329,25 +388,31 @@ Calibre <- function(
 
 #' Fit one dynamic Calibre gene-peak model
 #' @param df Cell-level data containing `exprs`, `atac`, and `pseudotime`.
-#' @param pseudotime_formula Smooth formula for the pseudotime main effect. It
-#'   must be an `s(pseudotime, ...)` term; the same basis is used for the
-#'   accessibility-by-pseudotime smooth.
+#' @param pseudotime_formula Pseudotime model mode or smooth formula. Supported
+#'   modes are `"linear"`, `"quadratic"`, and an `s(pseudotime, ...)` smooth.
 #' @param covariates Optional model terms.
 #' @param null_generation Null generator (`"s"` by default; also `"p"` or
 #'   `"s0"`).
 #' @param family Either `"poisson"` or `"nb"`.
 #' @param theory Return only the observed GAM fit.
 #' @param seed Pair-specific seed.
+#' @param rescue_dispersion If non-NULL and the quadratic fit has dispersion
+#'   above this value, refit the pair using `rescue_pseudotime_formula`.
+#' @param rescue_pseudotime_formula Formula used for dispersion rescue.
 #' @return A one-row result data frame, or `NULL` for a failed fit.
 #' @noRd
 CalibreDynamic_single <- function(
     df,
-    pseudotime_formula = "s(pseudotime, k = 5, bs = 'tp')",
+    pseudotime_formula = "quadratic",
     covariates = NULL,
     null_generation = "s",
     family = "poisson",
     theory = FALSE,
-    seed = 123
+    seed = 123,
+    rescue_dispersion = 1000,
+    rescue_pseudotime_formula = "s(pseudotime, k = 5, bs = 'tp')",
+    return_dynamic = FALSE,
+    dynamic_grid = NULL
 ) {
   if (!family %in% c("poisson", "nb")) {
     stop("family must be 'poisson' or 'nb'")
@@ -360,36 +425,68 @@ CalibreDynamic_single <- function(
   }
   if (!is.character(pseudotime_formula) || length(pseudotime_formula) != 1L ||
       is.na(pseudotime_formula) || !nzchar(trimws(pseudotime_formula))) {
-    stop("pseudotime_formula must be one non-empty s(pseudotime, ...) term")
+    stop("pseudotime_formula must be 'linear', 'quadratic', or an s(...) term")
   }
   pseudotime_formula <- trimws(pseudotime_formula)
-  if (!grepl("^s\\s*\\(", pseudotime_formula) ||
-      !grepl("\\)\\s*$", pseudotime_formula) ||
-      !grepl("pseudotime", pseudotime_formula, fixed = TRUE)) {
-    stop("pseudotime_formula must be an s(pseudotime, ...) term")
+  if (!is.null(rescue_dispersion) &&
+      (!is.numeric(rescue_dispersion) || length(rescue_dispersion) != 1L ||
+       !is.finite(rescue_dispersion) || rescue_dispersion <= 0)) {
+    stop("rescue_dispersion must be NULL or a positive number")
   }
-  if (grepl("\\bby\\s*=", pseudotime_formula)) {
-    stop("pseudotime_formula must not already contain by=; CalibreDynamic adds by=atac")
+  if (!is.null(rescue_pseudotime_formula) &&
+      (!is.character(rescue_pseudotime_formula) ||
+       length(rescue_pseudotime_formula) != 1L ||
+       is.na(rescue_pseudotime_formula) ||
+       !nzchar(trimws(rescue_pseudotime_formula)))) {
+    stop("rescue_pseudotime_formula must be NULL or one non-empty formula")
+  }
+  pseudotime_mode <- if (pseudotime_formula %in% c("linear", "quadratic")) {
+    pseudotime_formula
+  } else {
+    "spline"
+  }
+  if (identical(pseudotime_mode, "spline")) {
+    if (!grepl("^s\\s*\\(", pseudotime_formula) ||
+        !grepl("\\)\\s*$", pseudotime_formula) ||
+        !grepl("pseudotime", pseudotime_formula, fixed = TRUE)) {
+      stop("pseudotime_formula must be 'linear', 'quadratic', or an s(...) term")
+    }
+    if (grepl("\\bby\\s*=", pseudotime_formula)) {
+      stop("pseudotime_formula must not already contain by=; CalibreDynamic adds by=atac")
+    }
   }
   if (!is.numeric(df$pseudotime) || any(!is.finite(df$pseudotime))) {
     stop("pseudotime must be a finite numeric column")
   }
 
-  # The main smooth controls the gene-expression trajectory. The by-smooth is
-  # the only term removed by the dynamic null; the common ATAC slope remains.
-  # A point constraint identifies that slope from the dynamic smooth for all
-  # mgcv bases, including the default thin-plate basis. The baseline ATAC
-  # slope is therefore the association at the mean observed pseudotime.
+  # The common ATAC slope is identified at the mean observed pseudotime. For
+  # linear and quadratic modes, center pseudotime explicitly so that `atac`
+  # remains the association at that anchor. The dynamic null removes only the
+  # accessibility-by-pseudotime terms.
+  pseudotime_anchor_numeric <- mean(df$pseudotime)
   pseudotime_anchor <- format(
-    mean(df$pseudotime), digits = 17, scientific = TRUE
+    pseudotime_anchor_numeric, digits = 17, scientific = TRUE
   )
-  pseudotime_by_formula <- sub(
-    "\\)\\s*$",
-    paste0(", by = atac, pc = ", pseudotime_anchor, ")"),
-    pseudotime_formula
-  )
-  full_terms <- c("atac", pseudotime_formula, pseudotime_by_formula, covariates)
-  null_terms <- c("atac", pseudotime_formula, covariates)
+  if (identical(pseudotime_mode, "spline")) {
+    pseudotime_by_formula <- sub(
+      "\\)\\s*$",
+      paste0(", by = atac, pc = ", pseudotime_anchor, ")"),
+      pseudotime_formula
+    )
+    full_terms <- c("atac", pseudotime_formula, pseudotime_by_formula, covariates)
+    null_terms <- c("atac", pseudotime_formula, covariates)
+  } else {
+    df$pseudotime_centered <- df$pseudotime - pseudotime_anchor_numeric
+    main_terms <- "pseudotime_centered"
+    dynamic_terms <- "atac:pseudotime_centered"
+    if (identical(pseudotime_mode, "quadratic")) {
+      df$pseudotime_centered_sq <- df$pseudotime_centered^2
+      main_terms <- c(main_terms, "pseudotime_centered_sq")
+      dynamic_terms <- c(dynamic_terms, "atac:pseudotime_centered_sq")
+    }
+    full_terms <- c("atac", main_terms, dynamic_terms, covariates)
+    null_terms <- c("atac", main_terms, covariates)
+  }
   full_formula <- stats::as.formula(
     paste("exprs ~", paste(full_terms, collapse = " + "))
   )
@@ -414,23 +511,52 @@ CalibreDynamic_single <- function(
     if (!"atac" %in% names(coefficients) || is.na(coefficients[["atac"]])) {
       return(NULL)
     }
-    fit_summary <- try(summary(fit), silent = TRUE)
-    if (inherits(fit_summary, "try-error") || is.null(fit_summary$s.table)) {
-      return(NULL)
+    if (identical(pseudotime_mode, "spline")) {
+      fit_summary <- try(summary(fit), silent = TRUE)
+      if (inherits(fit_summary, "try-error") || is.null(fit_summary$s.table)) {
+        return(NULL)
+      }
+      smooth_table <- as.matrix(fit_summary$s.table)
+      smooth_names <- rownames(smooth_table)
+      dynamic_idx <- which(
+        grepl("pseudotime", smooth_names, fixed = TRUE) &
+          grepl("atac", smooth_names, fixed = TRUE)
+      )
+      if (length(dynamic_idx) != 1L ||
+          !all(c("edf", "Chi.sq", "p-value") %in% colnames(smooth_table))) {
+        return(NULL)
+      }
+      chi_sq <- unname(smooth_table[dynamic_idx, "Chi.sq"])
+      dynamic_edf <- unname(smooth_table[dynamic_idx, "edf"])
+      pval <- unname(smooth_table[dynamic_idx, "p-value"])
+      dynamic_coefficient_names <- NULL
+    } else {
+      dynamic_idx <- which(
+        grepl("pseudotime_centered", names(coefficients), fixed = TRUE) &
+          grepl("atac", names(coefficients), fixed = TRUE)
+      )
+      if (!length(dynamic_idx)) return(NULL)
+      covariance <- try(stats::vcov(fit), silent = TRUE)
+      if (inherits(covariance, "try-error") ||
+          !is.matrix(covariance) ||
+          any(!is.finite(covariance[dynamic_idx, dynamic_idx, drop = FALSE]))) {
+        return(NULL)
+      }
+      dynamic_coefficients <- coefficients[dynamic_idx]
+      dynamic_covariance <- covariance[dynamic_idx, dynamic_idx, drop = FALSE]
+      chi_sq <- try(
+        as.numeric(crossprod(dynamic_coefficients,
+                             solve(dynamic_covariance, dynamic_coefficients))),
+        silent = TRUE
+      )
+      if (inherits(chi_sq, "try-error") || length(chi_sq) != 1L ||
+          !is.finite(chi_sq) || chi_sq < 0) {
+        return(NULL)
+      }
+      dynamic_edf <- length(dynamic_idx)
+      pval <- stats::pchisq(chi_sq, df = dynamic_edf, lower.tail = FALSE)
+      dynamic_coefficient_names <- names(dynamic_coefficients)
     }
-    smooth_table <- as.matrix(fit_summary$s.table)
-    smooth_names <- rownames(smooth_table)
-    dynamic_idx <- which(
-      grepl("pseudotime", smooth_names, fixed = TRUE) &
-        grepl("atac", smooth_names, fixed = TRUE)
-    )
-    if (length(dynamic_idx) != 1L ||
-        !all(c("edf", "Chi.sq", "p-value") %in% colnames(smooth_table))) {
-      return(NULL)
-    }
-    chi_sq <- unname(smooth_table[dynamic_idx, "Chi.sq"])
-    dynamic_edf <- unname(smooth_table[dynamic_idx, "edf"])
-    pval <- unname(smooth_table[dynamic_idx, "p-value"])
     if (!all(is.finite(c(chi_sq, dynamic_edf, pval)))) return(NULL)
     pval <- min(max(pval, .Machine$double.xmin), 1)
     # CalibreFilter expects a z-like statistic. This is the two-sided normal
@@ -442,7 +568,8 @@ CalibreDynamic_single <- function(
       zval = zval,
       pval = pval,
       chi_sq = chi_sq,
-      dynamic_edf = dynamic_edf
+      dynamic_edf = dynamic_edf,
+      dynamic_coefficient_names = dynamic_coefficient_names
     )
   }
 
@@ -466,6 +593,28 @@ CalibreDynamic_single <- function(
   } else {
     NA_real_
   }
+  if (identical(pseudotime_mode, "quadratic") &&
+      !is.null(rescue_dispersion) &&
+      !is.null(rescue_pseudotime_formula) &&
+      is.finite(disp) && disp > rescue_dispersion) {
+    rescued <- CalibreDynamic_single(
+      df = df,
+      pseudotime_formula = rescue_pseudotime_formula,
+      covariates = covariates,
+      null_generation = null_generation,
+      family = family,
+      theory = theory,
+      seed = seed,
+      rescue_dispersion = NULL,
+      rescue_pseudotime_formula = NULL,
+      return_dynamic = return_dynamic,
+      dynamic_grid = dynamic_grid
+    )
+    if (!is.null(rescued)) {
+      attr(rescued, "rescue_used") <- TRUE
+      return(rescued)
+    }
+  }
   result <- data.frame(
     beta = observed$beta,
     zval = observed$zval,
@@ -479,7 +628,87 @@ CalibreDynamic_single <- function(
     theta = theta,
     stringsAsFactors = FALSE
   )
-  if (theory) return(result)
+
+  attach_dynamic_output <- function(result) {
+    if (!isTRUE(return_dynamic)) return(result)
+    dynamic_output_failure <- function(message) {
+      attr(result, "dynamic_output_error") <- message
+      result
+    }
+
+    coefficient <- stats::coef(full_fit)
+    if (identical(pseudotime_mode, "spline")) {
+      # Keep only the fitted dynamic smooth and the small covariance block
+      # needed to reconstruct the effect at any future pseudotime.
+      dynamic_smooth_index <- which(vapply(
+        full_fit$smooth,
+        function(smooth) {
+          identical(as.character(smooth$by), "atac") &&
+            grepl("pseudotime", smooth$label, fixed = TRUE)
+        },
+        logical(1)
+      ))
+      if (length(dynamic_smooth_index) != 1L) {
+        return(dynamic_output_failure(
+          "could not identify the pseudotime-by-ATAC smooth"
+        ))
+      }
+      smooth <- full_fit$smooth[[dynamic_smooth_index]]
+      smooth_indices <- seq.int(smooth$first.para, smooth$last.para)
+      dynamic_coefficients <- coefficient[smooth_indices]
+      parameter_names <- c("atac", names(dynamic_coefficients))
+      smooth_label <- smooth$label
+    } else {
+      smooth <- NULL
+      smooth_label <- NULL
+      if (is.null(observed$dynamic_coefficient_names) ||
+          !length(observed$dynamic_coefficient_names)) {
+        return(dynamic_output_failure(
+          "could not identify parametric dynamic coefficients"
+        ))
+      }
+      parameter_names <- c("atac", observed$dynamic_coefficient_names)
+      coefficient_indices <- match(parameter_names, names(coefficient))
+      if (anyNA(coefficient_indices)) {
+        return(dynamic_output_failure(
+          "parametric dynamic coefficients are missing from the fitted model"
+        ))
+      }
+      dynamic_coefficients <- coefficient[coefficient_indices[-1L]]
+    }
+    covariance <- full_fit$Vp
+    covariance <- if (is.matrix(covariance) &&
+                      nrow(covariance) == length(coefficient) &&
+                      ncol(covariance) == length(coefficient)) {
+      covariance_indices <- match(parameter_names, names(coefficient))
+      covariance[covariance_indices, covariance_indices, drop = FALSE]
+    } else {
+      NULL
+    }
+    if (!is.finite(observed$beta) ||
+        any(!is.finite(dynamic_coefficients))) {
+      return(dynamic_output_failure(
+        "dynamic component contains non-finite coefficients"
+      ))
+    }
+    attr(result, "dynamic_parameters") <- list(
+      beta = unname(observed$beta),
+      coefficients = unname(dynamic_coefficients),
+      coefficient_names = names(dynamic_coefficients),
+      covariance = covariance,
+      smooth = smooth,
+      smooth_label = smooth_label,
+      dynamic_basis = pseudotime_mode,
+      pseudotime_formula = pseudotime_formula,
+      pseudotime_anchor = pseudotime_anchor,
+      family = family,
+      link = full_fit$family$link,
+      version = 1L
+    )
+    result
+  }
+
+  if (theory) return(attach_dynamic_output(result))
 
   # The dynamic null removes only the accessibility-by-pseudotime smooth.
   # The common ATAC slope, gene pseudotime trend, covariates, and cell labels
@@ -553,62 +782,105 @@ CalibreDynamic_single <- function(
   # Legacy alias retained for compatibility with earlier dynamic outputs.
   result$dynamic_stat_syn <- synthetic$chi_sq
   result$dynamic_edf_syn <- synthetic$dynamic_edf
-  result
+  attach_dynamic_output(result)
 }
 
 #' Run Calibre-dynamic on a Seurat multiome object
-#' @param object Seurat object with RNA and ATAC assays.
-#' @param gene_peak_df Candidate pairs with `gene` and `peak` columns.
-#' @param celltype_col Cell-type metadata column.
-#' @param pseudotime_col Pseudotime metadata column.
-#' @param pseudotime_formula Smooth pseudotime formula, for example
-#'   `"s(pseudotime, k = 5, bs = 'tp')"`.
-#' @param family Either `"poisson"` or `"nb"`.
-#' @param celltype Optional cell type; `NULL` uses all cells.
-#' @param covariates Optional cell-level model terms.
-#' @param null_generation Null generator; formal analyses use `"s"`.
-#' @param stat Selection statistic (`"chi_sq"`, `"zval"`, or
-#'   `"pval"`). The default `"chi_sq"` uses mgcv's smooth-level
-#'   test statistic for the accessibility-by-pseudotime smooth.
-#' @param bin Binarize ATAC counts.
-#' @param selection Candidate-pair filtering strategy.
-#' @param returnObject Return the Seurat object instead of significant rows.
-#' @param fdrcutoff Target FDR.
-#' @param ncore Number of forked workers.
+#' The input object is assumed to contain cells from one lineage; all cells in
+#' the input object are used.
+#' @param object A Seurat object containing `RNA` and `ATAC` assays, already
+#'   subsetted to the pre-specified lineage.
+#' @param gene_peak_df A data frame of candidate gene--CRE pairs.
+#' @param pseudotime_col Metadata column containing finite numeric pseudotime
+#'   values. The default is `"pseudotime"`.
+#' @param pseudotime_formula Model for the dynamic effect. The default is
+#'   `"quadratic"`.
+#' @param rescue_pseudotime_formula Formula used for automatic dispersion
+#'   rescue. The default is `"s(pseudotime, k = 5, bs = 'tp')"`.
+#' @param covariates Optional cell-level covariates included in the GAM. The
+#'   default is `NULL`.
+#' @param fdrcutoff Target FDR level. The default is `0.1`.
+#' @param ncore Number of parallel workers on supported platforms. The default
+#'   is `10`.
+#' @param stat Test statistic used to rank dynamic associations for FDR
+#'   thresholding. The default is `"chisq"`.
+#' @param family GLM family. The default is `"poisson"`, with `"nb"` as the
+#'   negative binomial alternative.
+#' @param null_generation Synthetic-null data generation scheme. The default,
+#'   `"s"`, uses standardized Pearson-residual resampling.
+#' @param bin Whether to binarize ATAC counts before model fitting. The default
+#'   is `TRUE`.
+#' @param selection Candidate-pair filtering strategy. The default is
+#'   `"rate"`.
+#' @param returnObject Whether to return the updated Seurat object. The default
+#'   is `FALSE`, which returns the significant CRE--gene data frame.
 #' @param theory Return only observed GAM results without null generation.
-#' @param conservative Use the conservative FDR numerator offset.
+#'   Defaults to `FALSE`.
+#' @param conservative Use the conservative FDR numerator offset. Defaults to
+#'   `FALSE`.
 #' @param correction Apply the finite-cell correction in [CalibreFilter()].
-#' @param verbose Report progress.
-#' @param seed Master seed used to generate pair-specific seeds.
+#'   Defaults to `FALSE`.
+#' @param verbose Report progress. Defaults to `FALSE`.
+#' @param seed Master seed used to generate pair-specific seeds. Defaults to
+#'   `123`.
+#' @param pair_seeds Optional pair-specific seeds aligned to the input rows of
+#'   `gene_peak_df`. Defaults to `NULL`. This is useful when refitting a subset
+#'   while preserving the seeds from a completed analysis.
+#' @param rescue_dispersion For quadratic fits, pair-specific
+#'   fits above this dispersion are refit using `rescue_pseudotime_formula`.
+#'   Defaults to `1000`; set to `NULL` to disable automatic rescue.
+#' @param progress_file Optional path to append parent-process progress logs.
+#'   This is useful for long parallel runs because worker-level progress is not
+#'   reliably visible in the main log. Defaults to `NULL`.
+#' @param progress_every Number of pairs per progress batch. Defaults to
+#'   10,000.
+#' @param checkpoint_dir Optional directory for per-batch checkpoint files.
+#'   Completed batches are reused automatically when the same batch file is
+#'   present. Each checkpoint contains the fitted results and dynamic
+#'   parameters for one progress batch. When supplied, completed batches are
+#'   released from the parent process and reconstructed from disk only after
+#'   all fitting batches have finished. Defaults to `NULL`.
+#' @param return_dynamic Return compact dynamic parameters in addition
+#'   to the usual Calibre result. These parameters can be evaluated at any
+#'   pseudotime after fitting; no pair-by-cell table is created. Defaults to
+#'   `FALSE`.
+#' @param dynamic_grid Deprecated compatibility argument; it is ignored.
+#'   Defaults to `100L`.
 #' @return A Seurat object, significant-pair data frame, or theory result table.
 #' @export
 CalibreDynamic <- function(
     object,
     gene_peak_df,
-    celltype_col = "newCT",
-    family = "poisson",
-    celltype = NULL,
     pseudotime_col = "pseudotime",
-    pseudotime_formula = "s(pseudotime, k = 5, bs = 'tp')",
+    pseudotime_formula = "quadratic",
+    rescue_pseudotime_formula = "s(pseudotime, k = 5, bs = 'tp')",
     covariates = NULL,
+    fdrcutoff = 0.1,
+    ncore = 10,
+    stat = "chisq",
+    family = "poisson",
     null_generation = "s",
-    stat = "chi_sq",
     bin = TRUE,
     selection = "rate",
     returnObject = FALSE,
-    fdrcutoff = 0.05,
-    ncore = 10,
     theory = FALSE,
     conservative = FALSE,
     correction = FALSE,
     verbose = FALSE,
-    seed = 123
+    seed = 123,
+    pair_seeds = NULL,
+    rescue_dispersion = 1000,
+    progress_file = NULL,
+    progress_every = 10000L,
+    checkpoint_dir = NULL,
+    return_dynamic = FALSE,
+    dynamic_grid = 100L
 ) {
   if (!inherits(object, "Seurat")) stop("object must be a Seurat object")
   if (!("RNA" %in% Seurat::Assays(object))) stop("object must contain RNA assay")
   if (!("ATAC" %in% Seurat::Assays(object))) stop("object must contain ATAC assay")
-  if (!stat %in% c("chi_sq", "zval", "pval")) {
-    stop("CalibreDynamic stat must be 'chi_sq', 'zval', or 'pval'")
+  if (!stat %in% c("chisq", "zval", "pval")) {
+    stop("CalibreDynamic stat must be 'chisq', 'zval', or 'pval'")
   }
   meta <- object@meta.data
   if (!is.character(pseudotime_col) || length(pseudotime_col) != 1L ||
@@ -617,29 +889,63 @@ CalibreDynamic <- function(
   }
   if (!is.character(pseudotime_formula) || length(pseudotime_formula) != 1L ||
       is.na(pseudotime_formula) || !nzchar(trimws(pseudotime_formula))) {
-    stop("pseudotime_formula must be one non-empty s(pseudotime, ...) term")
+    stop("pseudotime_formula must be 'linear', 'quadratic', or an s(...) term")
   }
-  if (!grepl("^s\\s*\\(", trimws(pseudotime_formula)) ||
-      !grepl("\\)\\s*$", trimws(pseudotime_formula)) ||
-      !grepl("pseudotime", pseudotime_formula, fixed = TRUE)) {
-    stop("pseudotime_formula must be an s(pseudotime, ...) term")
-  }
-  if (grepl("\\bby\\s*=", pseudotime_formula)) {
-    stop("pseudotime_formula must not already contain by=; CalibreDynamic adds by=atac")
+  pseudotime_formula <- trimws(pseudotime_formula)
+  if (!pseudotime_formula %in% c("linear", "quadratic")) {
+    if (!grepl("^s\\s*\\(", pseudotime_formula) ||
+        !grepl("\\)\\s*$", pseudotime_formula) ||
+        !grepl("pseudotime", pseudotime_formula, fixed = TRUE)) {
+      stop("pseudotime_formula must be 'linear', 'quadratic', or an s(...) term")
+    }
+    if (grepl("\\bby\\s*=", pseudotime_formula)) {
+      stop("pseudotime_formula must not already contain by=; CalibreDynamic adds by=atac")
+    }
   }
   if (pseudotime_col %in% covariates) {
     stop("Do not repeat pseudotime_col in covariates")
   }
 
-  if (!is.null(celltype)) {
-    if (!celltype_col %in% colnames(meta)) stop("celltype_col not found: ", celltype_col)
-    keep_cells <- rownames(meta)[meta[[celltype_col]] == celltype]
-    if (!length(keep_cells)) stop("No cells found for celltype = ", celltype)
-    if (verbose) message("Using ", length(keep_cells), " cells from celltype = ", celltype)
-  } else {
-    keep_cells <- colnames(object)
-    if (verbose) message("No celltype specified; using all ", length(keep_cells), " cells.")
+  if (!is.logical(return_dynamic) || length(return_dynamic) != 1L ||
+      is.na(return_dynamic)) {
+    stop("return_dynamic must be TRUE or FALSE")
   }
+  if (!is.null(progress_file) &&
+      (!is.character(progress_file) || length(progress_file) != 1L ||
+       is.na(progress_file) || !nzchar(progress_file))) {
+    stop("progress_file must be NULL or a non-empty file path")
+  }
+  if (!is.numeric(progress_every) || length(progress_every) != 1L ||
+      !is.finite(progress_every) || progress_every < 1) {
+    stop("progress_every must be a positive number")
+  }
+  progress_every <- as.integer(progress_every)
+  if (!is.null(checkpoint_dir) &&
+      (!is.character(checkpoint_dir) || length(checkpoint_dir) != 1L ||
+       is.na(checkpoint_dir) || !nzchar(checkpoint_dir))) {
+    stop("checkpoint_dir must be NULL or a non-empty directory path")
+  }
+  if (!is.null(pair_seeds) &&
+      (!is.numeric(pair_seeds) || length(pair_seeds) != nrow(gene_peak_df) ||
+       any(!is.finite(pair_seeds)) || any(pair_seeds < 1) ||
+       any(pair_seeds != as.integer(pair_seeds)))) {
+    stop("pair_seeds must be NULL or one positive integer seed per input pair")
+  }
+  if (!is.null(rescue_dispersion) &&
+      (!is.numeric(rescue_dispersion) || length(rescue_dispersion) != 1L ||
+       !is.finite(rescue_dispersion) || rescue_dispersion <= 0)) {
+    stop("rescue_dispersion must be NULL or a positive number")
+  }
+  if (!is.null(rescue_pseudotime_formula) &&
+      (!is.character(rescue_pseudotime_formula) ||
+       length(rescue_pseudotime_formula) != 1L ||
+       is.na(rescue_pseudotime_formula) ||
+       !nzchar(trimws(rescue_pseudotime_formula)))) {
+    stop("rescue_pseudotime_formula must be NULL or one non-empty formula")
+  }
+
+  keep_cells <- colnames(object)
+  if (verbose) message("Using all ", length(keep_cells), " cells in the input object.")
   n_cell <- length(keep_cells)
   meta_sub <- meta[keep_cells, , drop = FALSE]
   if (!is.numeric(meta_sub[[pseudotime_col]]) ||
@@ -661,7 +967,11 @@ CalibreDynamic <- function(
   n_pair <- nrow(gp_filt)
   if (!n_pair) stop("No gene-peak pairs remain after filtering")
   if (verbose) message("Kept ", n_pair, " gene-peak pairs after filtering.")
-  pair_seeds <- calibre_pair_seeds(n_pair, seed)
+  pair_seeds <- if (is.null(pair_seeds)) {
+    calibre_pair_seeds(n_pair, seed)
+  } else {
+    as.integer(pair_seeds[gp_filt$.pair_index_original])
+  }
 
   fit_one_pair <- function(j) {
     gene_name <- as.character(gp_filt[j, "gene"])
@@ -684,40 +994,213 @@ CalibreDynamic <- function(
         null_generation = null_generation,
         family = family,
         theory = theory,
-        seed = pair_seeds[j]
+        seed = pair_seeds[j],
+        rescue_dispersion = rescue_dispersion,
+        rescue_pseudotime_formula = rescue_pseudotime_formula,
+        return_dynamic = return_dynamic
       ),
       silent = TRUE
     )
     if (inherits(res, "try-error") || is.null(res)) return(NULL)
+    rescue_used <- isTRUE(attr(res, "rescue_used"))
     res$gene <- gene_name
     res$peak <- peak_name
     res$pair_index <- gp_filt$.pair_index_original[j]
     res$pair_seed <- pair_seeds[j]
-    res
+    res$fit_mode <- if (rescue_used) {
+      "spline"
+    } else if (identical(pseudotime_formula, "quadratic")) {
+      "quadratic"
+    } else {
+      "spline"
+    }
+    res$rescue_used <- rescue_used
+    list(
+      result = res,
+      dynamic_parameters = attr(res, "dynamic_parameters")
+    )
   }
 
-  if (verbose) message("Fitting dynamic models in parallel (", ncore, " cores)...")
-  if (ncore > 1 && .Platform$OS.type != "windows") {
-    res_list <- pbmcapply::pbmclapply(
-      seq_len(n_pair), fit_one_pair,
-      mc.cores = ncore, mc.set.seed = FALSE
+  progress_message <- function(done, total, prefix = "Completed") {
+    line <- paste0(
+      "[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "] ",
+      prefix, " dynamic models: ", done, "/", total
     )
-  } else {
-    res_list <- lapply(seq_len(n_pair), fit_one_pair)
+    if (verbose) message(line)
+    if (!is.null(progress_file)) {
+      cat(line, "\n", file = progress_file, append = TRUE)
+    }
   }
-  res_df <- do.call(rbind, Filter(Negate(is.null), res_list))
+  if (verbose) message("Fitting dynamic models in parallel (", ncore, " cores)...")
+  progress_message(0L, n_pair, prefix = "Starting")
+  batch_size <- min(progress_every, n_pair)
+  batch_starts <- seq.int(1L, n_pair, by = batch_size)
+  batch_ends <- pmin(batch_starts + batch_size - 1L, n_pair)
+  if (!is.null(checkpoint_dir)) {
+    dir.create(checkpoint_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+  batch_results <- if (is.null(checkpoint_dir)) {
+    vector("list", length(batch_starts))
+  } else {
+    NULL
+  }
+  batch_files <- if (is.null(checkpoint_dir)) {
+    NULL
+  } else {
+    rep(NA_character_, length(batch_starts))
+  }
+  for (i_batch in seq_along(batch_starts)) {
+    batch_start <- batch_starts[[i_batch]]
+    batch_end <- batch_ends[[i_batch]]
+    checkpoint_file <- if (is.null(checkpoint_dir)) {
+      NULL
+    } else {
+      file.path(
+        checkpoint_dir,
+        sprintf("dynamic_batch_%06d_%06d.rds", batch_start, batch_end)
+      )
+    }
+    if (!is.null(checkpoint_file) && file.exists(checkpoint_file)) {
+      checkpoint <- try(readRDS(checkpoint_file), silent = TRUE)
+      valid_checkpoint <- !inherits(checkpoint, "try-error") &&
+        is.list(checkpoint) &&
+        identical(checkpoint$version, checkpoint_version) &&
+        identical(as.integer(checkpoint$n_pair), as.integer(n_pair)) &&
+        identical(as.integer(checkpoint$first), as.integer(batch_start)) &&
+        identical(as.integer(checkpoint$last), as.integer(batch_end)) &&
+        is.list(checkpoint$results)
+      if (valid_checkpoint) {
+        batch_files[[i_batch]] <- checkpoint_file
+        rm(checkpoint)
+        invisible(gc())
+        progress_message(batch_end, n_pair, prefix = "Loaded checkpoint for")
+        next
+      }
+      warning("Ignoring invalid dynamic checkpoint: ", checkpoint_file)
+      rm(checkpoint)
+    }
+    batch_indices <- seq.int(batch_start, batch_end)
+    batch_result <- NULL
+    if (ncore > 1 && .Platform$OS.type != "windows") {
+      batch_result <- pbmcapply::pbmclapply(
+        batch_indices, fit_one_pair,
+        mc.cores = ncore, mc.set.seed = FALSE,
+        ignore.interactive = TRUE
+      )
+    } else {
+      batch_result <- lapply(batch_indices, fit_one_pair)
+    }
+    if (!is.null(checkpoint_file)) {
+      saveRDS(
+        list(
+          version = checkpoint_version,
+          n_pair = n_pair,
+          first = batch_start,
+          last = batch_end,
+          results = batch_result
+        ),
+        checkpoint_file,
+        compress = "gzip"
+      )
+      batch_files[[i_batch]] <- checkpoint_file
+      rm(batch_result)
+      invisible(gc())
+    } else {
+      batch_results[[i_batch]] <- batch_result
+    }
+    progress_message(batch_end, n_pair)
+  }
+
+  if (!is.null(checkpoint_dir)) {
+    if (anyNA(batch_files) || !all(file.exists(batch_files))) {
+      stop("one or more dynamic checkpoint files are missing")
+    }
+    result_tables <- vector("list", length(batch_files))
+    parameter_list <- if (return_dynamic) vector("list", n_pair) else NULL
+    n_parameter <- 0L
+    for (i_batch in seq_along(batch_files)) {
+      checkpoint <- readRDS(batch_files[[i_batch]])
+      batch_result <- Filter(Negate(is.null), checkpoint$results)
+      if (length(batch_result)) {
+        result_tables[[i_batch]] <- do.call(
+          rbind, lapply(batch_result, `[[`, "result")
+        )
+        if (return_dynamic) {
+          for (one_result in batch_result) {
+            parameters <- one_result$dynamic_parameters
+            if (is.null(parameters)) next
+            result <- one_result$result
+            parameters$gene <- result$gene[[1L]]
+            parameters$peak <- result$peak[[1L]]
+            parameters$pair_index <- result$pair_index[[1L]]
+            parameters$pair_seed <- result$pair_seed[[1L]]
+            n_parameter <- n_parameter + 1L
+            parameter_list[[n_parameter]] <- parameters
+          }
+        }
+      }
+      rm(checkpoint, batch_result)
+      invisible(gc())
+    }
+    result_tables <- Filter(Negate(is.null), result_tables)
+    res_df <- if (length(result_tables)) {
+      do.call(rbind, result_tables)
+    } else {
+      NULL
+    }
+    if (return_dynamic) {
+      parameter_list <- if (n_parameter) {
+        parameter_list[seq_len(n_parameter)]
+      } else {
+        list()
+      }
+    }
+  } else {
+    res_list <- unlist(batch_results, recursive = FALSE)
+    res_list <- Filter(Negate(is.null), res_list)
+    res_df <- do.call(rbind, lapply(res_list, `[[`, "result"))
+    if (return_dynamic) {
+      parameter_list <- lapply(seq_along(res_list), function(i) {
+        parameters <- res_list[[i]]$dynamic_parameters
+        if (is.null(parameters)) return(NULL)
+        result <- res_list[[i]]$result
+        parameters$gene <- result$gene[[1L]]
+        parameters$peak <- result$peak[[1L]]
+        parameters$pair_index <- result$pair_index[[1L]]
+        parameters$pair_seed <- result$pair_seed[[1L]]
+        parameters
+      })
+      parameter_list <- Filter(Negate(is.null), parameter_list)
+    }
+  }
   if (is.null(res_df) || !nrow(res_df)) {
     warning("No valid dynamic results.")
     return(NULL)
+  }
+  dynamic_payload <- NULL
+  if (return_dynamic) {
+    dynamic_payload <- list(
+      parameters = parameter_list,
+      scale = "log_mean / linear_predictor",
+      description = list(
+        dynamic_component = "h(t) reconstructed from saved dynamic coefficients",
+        total_effect = "beta + h(t)",
+        dynamic_contribution = "not stored; evaluate h(t) for selected cells if needed",
+        total_contribution = "not stored; evaluate beta + h(t) for selected cells if needed"
+      ),
+      version = 1L
+    )
   }
   res_df$padj <- stats::p.adjust(res_df$pval, method = "BH")
   object@misc$Calibre <- list(
     res_df = res_df,
     n_cell = n_cell,
-    celltype = if (is.null(celltype)) "AllCells" else celltype,
+    celltype = "AllCells",
     analysis = "dynamic",
     pseudotime_col = pseudotime_col,
     pseudotime_formula = pseudotime_formula,
+    rescue_dispersion = rescue_dispersion,
+    rescue_pseudotime_formula = rescue_pseudotime_formula,
     null_generation = if (theory) "none" else null_generation,
     null_bootstrap = if (theory || null_generation == "p") {
       if (theory) "none" else "parametric"
@@ -732,11 +1215,104 @@ CalibreDynamic <- function(
     correction = correction
   )
 
-  if (theory) return(res_df)
-  CalibreFilter(
+  if (return_dynamic) {
+    object@misc$Calibre$dynamic_output <- dynamic_payload
+  }
+  if (theory) {
+    if (return_dynamic) {
+      return(list(
+        results = res_df,
+        dynamic_parameters = dynamic_payload$parameters
+      ))
+    }
+    return(res_df)
+  }
+  filtered <- CalibreFilter(
     object, stat = stat, fdrcutoff = fdrcutoff,
     correction = correction, returnObject = returnObject,
     conservative = conservative, verbose = verbose
+  )
+  if (!return_dynamic) return(filtered)
+  if (returnObject) {
+    filtered@misc$Calibre$dynamic_output <- dynamic_payload
+    filtered@misc$EpiLink <- filtered@misc$Calibre
+    return(filtered)
+  }
+  list(
+    selected = filtered,
+    dynamic_parameters = dynamic_payload$parameters
+  )
+}
+
+#' Evaluate a saved Calibre-dynamic spline parameter object
+#'
+#' @param dynamic_parameters One element of `dynamic_parameters` returned by
+#'   [CalibreDynamic()].
+#' @param pseudotime Numeric pseudotime values at which to evaluate the model.
+#' @return A data frame containing the dynamic and total log-scale effects,
+#'   their standard errors when available, and the fold change.
+#' @export
+CalibreDynamicPredict <- function(dynamic_parameters, pseudotime) {
+  if (!is.list(dynamic_parameters) ||
+      is.null(dynamic_parameters$coefficients) ||
+      is.null(dynamic_parameters$beta)) {
+    stop("dynamic_parameters is not a valid Calibre-dynamic parameter object")
+  }
+  pseudotime <- as.numeric(pseudotime)
+  if (!length(pseudotime) || any(!is.finite(pseudotime))) {
+    stop("pseudotime must contain at least one finite numeric value")
+  }
+  newdata <- data.frame(
+    pseudotime = pseudotime,
+    atac = 1
+  )
+  dynamic_basis <- if (is.null(dynamic_parameters$dynamic_basis)) {
+    "spline"
+  } else {
+    as.character(dynamic_parameters$dynamic_basis)
+  }
+  if (identical(dynamic_basis, "spline")) {
+    if (is.null(dynamic_parameters$smooth)) {
+      stop("saved spline dynamic parameters do not contain a smooth object")
+    }
+    # PredictMat applies the same identifiability reparameterization that
+    # mgcv::predict.gam uses. Predict.matrix() alone can return the unconstrained
+    # basis (bs.dim columns) rather than the fitted coefficient basis (df cols).
+    basis <- mgcv::PredictMat(dynamic_parameters$smooth, newdata)
+  } else if (dynamic_basis %in% c("linear", "quadratic")) {
+    anchor <- suppressWarnings(as.numeric(dynamic_parameters$pseudotime_anchor))
+    if (length(anchor) != 1L || !is.finite(anchor)) {
+      stop("parametric dynamic parameters do not contain a valid pseudotime anchor")
+    }
+    centered <- pseudotime - anchor
+    basis <- matrix(centered, ncol = 1L)
+    if (identical(dynamic_basis, "quadratic")) {
+      basis <- cbind(basis, centered^2)
+    }
+  } else {
+    stop("unknown saved dynamic basis: ", dynamic_basis)
+  }
+  coefficients <- as.numeric(dynamic_parameters$coefficients)
+  if (ncol(basis) != length(coefficients)) {
+    stop("saved spline basis and coefficient dimensions do not match")
+  }
+  dynamic_component <- drop(basis %*% coefficients)
+  total_effect <- unname(dynamic_parameters$beta) + dynamic_component
+  covariance <- dynamic_parameters$covariance
+  effect_se <- rep(NA_real_, length(pseudotime))
+  if (is.matrix(covariance) && nrow(covariance) == ncol(basis) + 1L) {
+    contrast <- cbind(1, basis)
+    effect_se <- sqrt(pmax(rowSums((contrast %*% covariance) * contrast), 0))
+  }
+  data.frame(
+    pseudotime = pseudotime,
+    dynamic_component = dynamic_component,
+    total_effect = total_effect,
+    effect_se = effect_se,
+    effect_lower = total_effect - 1.96 * effect_se,
+    effect_upper = total_effect + 1.96 * effect_se,
+    fold_change = exp(total_effect),
+    stringsAsFactors = FALSE
   )
 }
 
@@ -925,24 +1501,32 @@ CalibreDiff_single <- function(
   result
 }
 
-#' Test differential peak-gene associations between two conditions
+#' Test differential CRE-gene associations between two conditions or cell types
 #'
-#' Fits a common peak-gene slope and a peak-by-condition interaction. The
-#' interaction is the differential-association estimand. Its synthetic null is
-#' generated from a reduced model that removes only that interaction.
+#' Fits a common CRE-gene effect and a group interaction. The interaction is
+#' the differential-association estimand. Its synthetic null is generated from
+#' a reduced model that removes only that interaction. Use either
+#' `condition_diff` or `celltype_diff`, but not both. The placeholder defaults
+#' must be replaced with the labels in the metadata, and the unused comparison
+#' vector must be set to `NULL`.
 #'
 #' @inheritParams Calibre
-#' @param condition_col Metadata column containing the condition labels. The
-#'   first factor level is the reference; for a non-factor column, the first
-#'   observed value is the reference. With `celltype_diff`, this column is
-#'   used only for optional condition filtering.
-#' @param condition Optional condition label(s) used to subset cells before
-#'   testing. `NULL` uses all conditions.
-#' @param celltype_diff Optional character vector of length two. When supplied,
-#'   tests the second cell type versus the first cell type within the selected
-#'   condition(s).
-#' @param condition_diff Optional character vector of length two. When
-#'   supplied, tests the second condition versus the first condition.
+#' @param condition_col Metadata column containing condition labels. The
+#'   default is `"condition"`.
+#' @param condition_diff The two condition labels to compare. The second label
+#'   is compared with the first. The default is
+#'   `c("condition1", "condition2")`; set to `NULL` for a cell-type
+#'   comparison.
+#' @param celltype_col Metadata column containing cell-type labels. The default
+#'   is `"newCT"`.
+#' @param celltype Optional single cell type used to subset cells. The default
+#'   is `NULL`, which uses all cell types.
+#' @param condition Optional condition label or labels used to subset cells.
+#'   The default is `NULL`, which uses all conditions.
+#' @param celltype_diff The two cell-type labels to compare. The second label
+#'   is compared with the first. The default is
+#'   `c("celltype1", "celltype2")`; set to `NULL` for a condition
+#'   comparison.
 #' @param null_generation Null generator; formal analyses use `"s"`, matching
 #'   [Calibre()].
 #' @param donor_col Optional metadata column containing donor/subject labels.
@@ -963,29 +1547,29 @@ CalibreDiff_single <- function(
 CalibreDiff <- function(
     object,
     gene_peak_df,
-    celltype_col = "newCT",
-    family = "poisson",
-    celltype = NULL,
     condition_col = "condition",
+    condition_diff = c("condition1", "condition2"),
+    celltype_col = "newCT",
+    celltype = NULL,
     condition = NULL,
-    celltype_diff = NULL,
-    condition_diff = NULL,
-    donor_col = NULL,
-    donor_effect = FALSE,
-    donor_robust = NULL,
+    celltype_diff = c("celltype1", "celltype2"),
     covariates = NULL,
-    null_generation = "s",
+    fdrcutoff = 0.1,
+    ncore = 10,
     stat = "zval",
+    family = "poisson",
+    null_generation = "s",
     bin = TRUE,
     selection = "rate",
     returnObject = FALSE,
-    fdrcutoff = 0.05,
-    ncore = 10,
     theory = FALSE,
     conservative = FALSE,
     correction = FALSE,
     verbose = FALSE,
     seed = 123,
+    donor_col = NULL,
+    donor_effect = FALSE,
+    donor_robust = NULL,
     progress_file = NULL,
     progress_every = 10000L
 ) {
@@ -1291,7 +1875,7 @@ CalibreDiff <- function(
   threshold <- filtered_object@misc$Calibre$threshold
   statistic <- switch(
     stat,
-    chi_sq = filtered_object@misc$Calibre$res_df$chi_sq,
+    chisq = filtered_object@misc$Calibre$res_df$chi_sq,
     zval = abs(filtered_object@misc$Calibre$res_df$zval),
     pval = -log2(pmax(
       2 * stats::pnorm(-abs(filtered_object@misc$Calibre$res_df$zval)),
@@ -1335,7 +1919,7 @@ CalibreFilter <- function(
     warning("No results found in object@misc$Calibre$res_df")
     return(if (returnObject) object else res_df)
   }
-  if (stat == "chi_sq") {
+  if (stat == "chisq") {
     coef_real <- res_df$chi_sq
     coef_syn <- res_df$chi_sq_syn
   } else if (stat == "zval") {
@@ -1348,7 +1932,7 @@ CalibreFilter <- function(
     coef_real <- -log2(pmax(2 * stats::pnorm(-abs(res_df$zval)), .Machine$double.xmin))
     coef_syn <- -log2(pmax(2 * stats::pnorm(-abs(res_df$zval_syn)), .Machine$double.xmin))
   } else {
-    stop("stat must be either 'chi_sq', 'zval', 'pval', or 'beta'")
+    stop("stat must be either 'chisq', 'zval', 'pval', or 'beta'")
   }
   correct_factor <- if (correction) {
     1 / (1 + sqrt(log2(nrow(res_df)) / n_cell))

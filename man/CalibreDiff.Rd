@@ -3,92 +3,131 @@
 \name{CalibreDiff}
 \alias{CalibreDiff}
 \alias{EpiLinkDiff}
-\title{Test differential peak-gene associations between two conditions}
+\title{Test differential CRE-gene associations between two conditions or cell types}
 \usage{
 CalibreDiff(
   object,
   gene_peak_df,
+  condition_col = "condition",
+  condition_diff = c("condition1", "condition2"),
   celltype_col = "newCT",
-  family = "poisson",
   celltype = NULL,
-  condition_col,
-  donor_col = NULL,
-  donor_effect = FALSE,
-  donor_robust = NULL,
+  condition = NULL,
+  celltype_diff = c("celltype1", "celltype2"),
   covariates = NULL,
-  null_generation = "s",
+  fdrcutoff = 0.1,
+  ncore = 10,
   stat = "zval",
+  family = "poisson",
+  null_generation = "s",
   bin = TRUE,
   selection = "rate",
   returnObject = FALSE,
-  fdrcutoff = 0.05,
-  ncore = 10,
   theory = FALSE,
   conservative = FALSE,
   correction = FALSE,
   verbose = FALSE,
-  seed = 123
+  seed = 123,
+  donor_col = NULL,
+  donor_effect = FALSE,
+  donor_robust = NULL,
+  progress_file = NULL,
+  progress_every = 10000L
 )
 }
 \arguments{
-\item{object}{Seurat object with RNA and ATAC assays.}
+\item{object}{Seurat object with \code{RNA} and \code{ATAC} assays; required,
+with no default.}
 
-\item{gene_peak_df}{Candidate pairs with \code{gene} and \code{peak} columns.}
+\item{gene_peak_df}{Data frame containing \code{gene} and \code{peak} columns;
+required, with no default.}
 
-\item{celltype_col}{Metadata cell-type column.}
+\item{condition_col}{Metadata column containing condition labels; the default
+is \code{"condition"}.}
 
-\item{family}{Either \code{"poisson"} or \code{"nb"}.}
+\item{condition_diff}{The two condition labels to compare. The second label is
+compared with the first. The default is \code{c("condition1", "condition2")};
+set to \code{NULL} for a cell-type comparison.}
 
-\item{celltype}{Optional cell type; \code{NULL} uses all cells.}
+\item{celltype_col}{Metadata column containing cell-type labels; the default
+is \code{"newCT"}.}
 
-\item{condition_col}{Metadata column containing exactly two conditions. The
-first factor level is the reference; for a non-factor column, the first
-observed value is the reference.}
+\item{celltype}{Optional single cell type used to subset cells. The default is
+\code{NULL}, which uses all cell types.}
 
-\item{donor_col}{Optional metadata column containing donor/subject labels.
-It is required whenever \code{donor_effect} or \code{donor_robust} is enabled.}
+\item{condition}{Optional condition label or labels used to subset cells. The
+default is \code{NULL}, which uses all conditions.}
 
-\item{donor_effect}{Whether to include donor fixed effects. When enabled,
-ATAC is centered within donor and the condition main effect is omitted
-because donor is nested in condition.}
+\item{celltype_diff}{The two cell-type labels to compare. The second label is
+compared with the first. The default is \code{c("celltype1", "celltype2")};
+set to \code{NULL} for a condition comparison.}
 
-\item{donor_robust}{Whether to use donor-cluster-robust variance. The default
-\code{NULL} is automatic: it resolves to \code{TRUE} when \code{donor_col} is supplied
-and to \code{FALSE} otherwise. Set it explicitly to \code{FALSE} for model-based
-variance.}
+\item{covariates}{Optional cell-level covariates included in the GLM. The
+default is \code{NULL}.}
 
-\item{covariates}{Optional cell-level model terms.}
+\item{fdrcutoff}{Target FDR level. The default is \code{0.1}.}
 
-\item{null_generation}{Null generator; formal analyses use \code{"s"}, matching
-\code{\link[=Calibre]{Calibre()}}.}
+\item{ncore}{Number of parallel workers on supported platforms. The default is
+\code{10}.}
 
-\item{stat}{Selection statistic.}
+\item{stat}{Test statistic used to rank differential associations for FDR
+thresholding; the default is \code{"zval"}. \code{"pval"} is also supported.}
 
-\item{bin}{Binarize ATAC counts.}
+\item{family}{GLM family; the default is \code{"poisson"}, with \code{"nb"} as
+the negative binomial alternative.}
 
-\item{selection}{Candidate-pair filtering strategy.}
+\item{null_generation}{Synthetic-null data generation scheme. The default,
+\code{"s"}, uses standardized Pearson-residual resampling.}
 
-\item{returnObject}{Return the Seurat object instead of significant rows.}
+\item{bin}{Whether to binarize ATAC counts before model fitting. The default is
+\code{TRUE}.}
 
-\item{fdrcutoff}{Target FDR.}
+\item{selection}{Candidate-pair filtering strategy. The default is
+\code{"rate"}, which keeps pairs with both gene expression and CRE
+accessibility detected in at least 5\% of cells.}
 
-\item{ncore}{Number of forked workers.}
+\item{returnObject}{Whether to return the updated Seurat object. The default is
+\code{FALSE}, which returns the significant CRE--gene data frame.}
 
-\item{theory}{Return BH-ready observed GLM results without null generation.}
+\item{theory}{Whether to return observed interaction results without generating
+a synthetic null. The default is \code{FALSE}.}
 
-\item{conservative}{Use the conservative FDR numerator offset.}
+\item{conservative}{Whether to use the more conservative FDR numerator offset.
+The default is \code{FALSE}.}
 
-\item{correction}{Apply the finite-cell correction in \code{\link[=CalibreFilter]{CalibreFilter()}}.}
+\item{correction}{Whether to apply the finite-cell correction during threshold
+calibration. The default is \code{FALSE}.}
 
-\item{verbose}{Report progress.}
+\item{verbose}{Whether to report fitting progress and the number of
+discoveries. The default is \code{FALSE}.}
 
-\item{seed}{Master seed used to generate pair-specific seeds.}
+\item{seed}{Master seed for reproducible pair-specific seeds. The default is
+\code{123}.}
+
+\item{donor_col}{Optional donor or subject metadata column. The default is
+\code{NULL}.}
+
+\item{donor_effect}{Whether to include donor fixed effects. The default is
+\code{FALSE}.}
+
+\item{donor_robust}{Whether to use donor-cluster-robust variance estimates.
+The default is \code{NULL}, which enables it automatically when
+\code{donor_col} is supplied.}
+
+\item{progress_file}{Optional file to which parent-process progress messages
+are appended. The default is \code{NULL}.}
+
+\item{progress_every}{Number of pairs processed between progress updates. The
+default is \code{10000L}.}
 }
 \value{
 A Seurat object, significant-pair data frame, or theory result table.
 }
 \description{
-Fits a common peak-gene slope and a peak-by-condition interaction. The
-interaction is the differential-association estimand. Its synthetic null is
-generated from a reduced model that removes only that interaction.
+Fits a common CRE-gene effect and a group interaction. The interaction is the
+differential-association estimand. Its synthetic null is generated from a
+reduced model that removes only that interaction. Use either
+\code{condition_diff} or \code{celltype_diff}, but not both. The placeholder
+defaults must be replaced with the labels in the metadata, and the unused
+comparison vector must be set to \code{NULL}.
 }

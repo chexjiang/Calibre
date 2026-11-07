@@ -21,3 +21,23 @@
 ^Calibre[.]Rcheck$
 ^.*[.]bgz[.]tbi$
 ^Calibre_[0-9].*[.]tar[.]gz$
+^\.Rlib$
+
+# Build only the Calibre package implementation and its helper functions.
+^R/archr_benchmark[.]R$
+^R/compatibility[.]R$
+^R/crispr_new[.]R$
+^R/da_null[.]R$
+^R/differential_simulation[.]R$
+^R/dynamic_simulation[.]R$
+^R/empirical_null[.]R$
+^R/eqtl_validation[.]R$
+^R/random[.]R$
+^R/scMultiMap_compat[.]R$
+^R/signac_benchmark[.]R$
+^R/simulation[.]R$
+^R/validation[.]R$
+^R/validation_plots[.]R$
+
+# Keep only documentation for functions defined in R/Calibre.R and R/helper.R.
+^man/(calibre_simulation_methods|empirical_null_method_group|empirical_null_methods|fit_empirical_calibre_family|fit_empirical_glm|fit_empirical_null_method|fit_empirical_null_method_group|fit_empirical_scent|fit_empirical_scmultimap|fit_empirical_signac|permute_empirical_atac|run_archr_simulation|run_calibre_simulation|run_scent_simulation|sample_empirical_pairs|simulate_calibre_data|simulate_da_data|summarize_empirical_method)[.]Rd$

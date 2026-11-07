@@ -70,11 +70,36 @@
 *.tar.gz
 *.Rout
 
+
 # Keep renv.lock if it is created; ignore only the installed package library.
+/.Rlib/
 renv/library/
 renv/staging/
 packrat/lib/
 packrat/src/
+
+# Keep only the Calibre package implementation in the GitHub repository.
+/R/*
+!/R/Calibre.R
+!/R/helper.R
+
+# Keep only help files generated from the two package source files.
+/man/*
+!/man/Calibre.Rd
+!/man/CalibreDiff.Rd
+!/man/CalibreDynamic.Rd
+!/man/CalibreDynamicPredict.Rd
+!/man/CalibreFilter.Rd
+!/man/Calibre_single.Rd
+!/man/CanonicalPeakNames.Rd
+!/man/CollapseToLongestTranscript.Rd
+!/man/FilterGenePeakPairs.Rd
+!/man/GetGenePeakPairs.Rd
+!/man/InferPeakSeparator.Rd
+!/man/binary_search.Rd
+!/man/calibre_pair_seeds.Rd
+!/man/validate_with_assay.Rd
+!/man/validate_with_assay1.Rd
 
 
 # -----------------------------------------------------------------------------
