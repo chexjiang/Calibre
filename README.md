@@ -36,8 +36,7 @@ remotes::install_github("chexjiang/Calibre", dependencies = TRUE)
 
 `Calibre()` expects:
 
-- `object`: a Seurat object containing RNA and ATAC assays with cell-level
-  count data. To create the input Seurat object, run:
+- `object`: a Seurat object containing RNA and ATAC assays with cell-level count data and metadata. To create the input Seurat object, run:
 
   ```r
   object <- Seurat::CreateSeuratObject(
