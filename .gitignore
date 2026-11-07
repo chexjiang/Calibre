@@ -79,6 +79,7 @@ packrat/lib/
 packrat/src/
 
 # Keep only the Calibre package implementation in the GitHub repository.
+/config/*
 /R/*
 !/R/Calibre.R
 !/R/helper.R
