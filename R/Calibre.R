@@ -345,9 +345,6 @@ Calibre <- function(
   batch_size <- min(progress_every, n_pair)
   batch_starts <- seq.int(1L, n_pair, by = batch_size)
   batch_ends <- pmin(batch_starts + batch_size - 1L, n_pair)
-  checkpoint_version <- if (identical(pseudotime_formula, "quadratic") &&
-                            !is.null(rescue_dispersion) &&
-                            !is.null(rescue_pseudotime_formula)) 2L else 1L
   batch_results <- vector("list", length(batch_starts))
   for (i_batch in seq_along(batch_starts)) {
     batch_indices <- seq.int(batch_starts[[i_batch]], batch_ends[[i_batch]])
