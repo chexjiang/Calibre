@@ -4,6 +4,8 @@ Calibre is an R package for computationally efficient, FDR-calibrated
 inference of *cis*-regulatory element (CRE)–gene links from single-cell
 multiome data.
 
+![Overview of Calibre](figure/fig1.png)
+
 ## Key takeaways
 
 - **Input:** paired single-cell RNA and ATAC-seq data.

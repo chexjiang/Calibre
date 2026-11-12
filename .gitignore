@@ -37,7 +37,8 @@
 
 /results/
 /logs/
-/figure/
+/figure/*
+!/figure/fig1.png
 /figures/
 /QualityControl/
 /ArchRLogs/
